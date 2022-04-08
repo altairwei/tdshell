@@ -49,9 +49,9 @@ auto overloaded(F... f) {
 
 namespace td_api = td::td_api;
 
-class TdExample {
+class TdShell {
  public:
-  TdExample() {
+  TdShell() {
     td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
     client_manager_ = std::make_unique<td::ClientManager>();
     client_id_ = client_manager_->create_client_id();
@@ -59,15 +59,16 @@ class TdExample {
   }
 
   void loop() {
+    std::cout << "Enter action [q] quit [u] check for updates and request results [c] show chats [m <chat_id> "
+              "<text>] send message [me] show self [l] logout."
+          << std::endl;
     while (true) {
       if (need_restart_) {
         restart();
       } else if (!are_authorized_) {
         process_response(client_manager_->receive(10));
       } else {
-        std::cout << "Enter action [q] quit [u] check for updates and request results [c] show chats [m <chat_id> "
-                     "<text>] send message [me] show self [l] logout: "
-                  << std::endl;
+        std::cout << "tdshell > ";
         std::string line;
         std::getline(std::cin, line);
         std::istringstream ss(line);
@@ -121,7 +122,7 @@ class TdExample {
             }
             auto chats = td::move_tl_object_as<td_api::chats>(object);
             for (auto chat_id : chats->chat_ids_) {
-              std::cout << "[chat_id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
+              std::cout << "[chat_id: " << chat_id << "] [title: " << chat_title_[chat_id] << "]" << std::endl;
             }
           });
         }
@@ -148,7 +149,7 @@ class TdExample {
 
   void restart() {
     client_manager_.reset();
-    *this = TdExample();
+    *this = TdShell();
   }
 
   void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
@@ -213,7 +214,7 @@ class TdExample {
                        td_api::downcast_call(*update_new_message.message_->sender_id_,
                                              overloaded(
                                                  [this, &sender_name](td_api::messageSenderUser &user) {
-                                                   sender_name = get_user_name(user.user_id_);
+                                                   sender_name = get_hisuser_name(user.user_id_);
                                                  },
                                                  [this, &sender_name](td_api::messageSenderChat &chat) {
                                                    sender_name = get_chat_title(chat.chat_id_);
@@ -330,6 +331,6 @@ class TdExample {
 };
 
 int main() {
-  TdExample example;
-  example.loop();
+  TdShell shell;
+  shell.loop();
 }

@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
-
-project(TdShell VERSION 1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 14)
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
@@ -26,7 +24,9 @@ include_directories ("3rdparty/td/td/generate/")
 include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>/3rdparty/td/tdutils)
 
 set (TDSHELL_SOURCE
-    tdshell.cpp
+    main.cpp
+    tdcore.h
+    tdcore.cpp
 )
 
 add_executable (tdshell ${TDSHELL_SOURCE} ${TL_TD_JSON_AUTO} )
