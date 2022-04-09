@@ -136,23 +136,7 @@ void TdCore::process_update(td_api::object_ptr<td_api::Object> update) {
                       //          << "]" << std::endl;
                     },
                     [this](td_api::updateFile &update_file) {
-                      double total = update_file.file_->expected_size_;
-                      double down = update_file.file_->local_->downloaded_size_;
-                      double progress = down / total;
-
-                      int barWidth = 70;
-                      std::cout << "[";
-                      int pos = barWidth * progress;
-                      for (int i = 0; i < barWidth; ++i) {
-                          if (i < pos) std::cout << "=";
-                          else if (i == pos) std::cout << ">";
-                          else std::cout << " ";
-                      }
-                      std::cout << "] " << int(progress * 100.0) << " %\r";
-                      std::cout.flush();
-
-                      if (progress == 1)
-                        std::cout << std::endl;
+                      print_progress(update_file);
                     },
                     [](auto &update) {}));
 }
@@ -324,4 +308,79 @@ void TdCore::getChatHistory(std::promise<MessagesPtr>& prom, td_api::int53 chat_
       prom.set_value(td::move_tl_object_as<td_api::messages>(object));
     }
   );
+}
+
+void TdCore::downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> message_ids) {
+  std::vector<MessagePtr> MsgObjs;
+  for (auto msg_id : message_ids) {
+    std::promise<MessagePtr> prom;
+    auto fut = prom.get_future();
+    send_query(
+      td_api::make_object<td_api::getMessage>(chat_id, msg_id),
+      [this, &prom](TdCore::Object object) {
+        if (object->get_id() == td_api::error::ID) {
+          prom.set_exception(std::make_exception_ptr(std::logic_error("getMessage failed")));
+          return;
+        }
+
+        prom.set_value(td::move_tl_object_as<td_api::message>(object));
+      }
+    );
+    MsgObjs.push_back(std::move(fut.get()));
+  }
+
+  std::vector<std::promise<FilePtr>> promises;
+  for (size_t i = 0; i < MsgObjs.size(); i++) {
+    promises.push_back(std::promise<FilePtr>());
+  }
+
+  for (size_t i = 0; i < MsgObjs.size(); i++) {
+    auto &msg = MsgObjs[i];
+    auto &prom = promises[i];
+    if (msg->content_->get_id() == td_api::messageDocument::ID) {
+      auto &content = static_cast<td_api::messageDocument &>(*msg->content_);
+      auto file_id = content.document_->document_->id_;
+      filenames_.insert({file_id, content.document_->file_name_});
+
+      send_query(
+        td_api::make_object<td_api::downloadFile>(file_id, 32, 0, 0, true),
+        [this, &prom](TdCore::Object object) {
+          if (object->get_id() == td_api::error::ID) {
+            prom.set_exception(std::make_exception_ptr(std::logic_error("downloadFile failed")));
+            return;
+          }
+
+          prom.set_value(td::move_tl_object_as<td_api::file>(object));
+        }
+      );
+    }
+  }
+
+  for (auto &prom : promises) {
+    // TODO: Check downloaded.
+    auto file = prom.get_future().get();
+    if (file->local_->is_downloading_completed_) {
+      filenames_.erase(file->id_);
+    }
+  }
+}
+
+static inline void move_up(int lines) { std::cout << "\033[" << lines << "A"; }
+
+void TdCore::print_progress(td_api::updateFile &update_file) {
+  double total = update_file.file_->expected_size_;
+  double down = update_file.file_->local_->downloaded_size_;
+  double progress = down / total;
+
+  int barWidth = 70;
+  std::cout << filenames_[update_file.file_->id_];
+  std::cout << " [";
+  int pos = barWidth * progress;
+  for (int i = 0; i < barWidth; ++i) {
+      if (i < pos) std::cout << "=";
+      else if (i == pos) std::cout << ">";
+      else std::cout << " ";
+  }
+  std::cout << "] " << int(progress * 100.0) << " %\r";
+  std::cout.flush();
 }

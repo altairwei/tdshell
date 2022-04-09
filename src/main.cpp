@@ -42,7 +42,7 @@ public:
                     << core_->get_chat_title(chat_id) << "]" << std::endl;
         }
       } else if (action == "history") {
-        std::uint64_t chat_id;
+        std::int64_t chat_id;
         ss >> chat_id;
         std::uint32_t limit;
         ss >> limit;
@@ -75,45 +75,15 @@ public:
           }            
         }
       } else if (action == "download") {
-        std::uint64_t chat_id;
+        std::int64_t chat_id;
         ss >> chat_id;
-        std::uint64_t message_id;
-        ss >> message_id;
-
-        std::promise<MessagePtr> prom;
-        auto fut = prom.get_future();
-        core_->send_query(
-          td_api::make_object<td_api::getMessage>(chat_id, message_id),
-          [this, &prom](TdCore::Object object) {
-            if (object->get_id() == td_api::error::ID) {
-              prom.set_exception(std::make_exception_ptr(std::logic_error("getMessage failed")));
-              return;
-            }
-
-            prom.set_value(td::move_tl_object_as<td_api::message>(object));
-          }
-        );
-
-        auto msg = fut.get();
-        if (msg->content_->get_id() == td_api::messageDocument::ID) {
-          auto &content = static_cast<td_api::messageDocument &>(*msg->content_);
-          auto file_id = content.document_->document_->id_;
-          std::promise<FilePtr> download_prom;
-          auto download_fut = download_prom.get_future();
-          std::cout << content.document_->file_name_ << std::endl;
-          core_->send_query(
-            td_api::make_object<td_api::downloadFile>(file_id, 32, 0, 0, true),
-            [this, &download_prom](TdCore::Object object) {
-              if (object->get_id() == td_api::error::ID) {
-                download_prom.set_exception(std::make_exception_ptr(std::logic_error("getMessage failed")));
-                return;
-              }
-
-              download_prom.set_value(td::move_tl_object_as<td_api::file>(object));
-            }
-          );
-          download_fut.get();
+        std::int32_t message_id;
+        std::vector<std::int32_t> messages;
+        while(ss >> message_id) {
+          messages.push_back(message_id);
         }
+
+        core_->downloadFiles(chat_id, messages);
       }
 
     }

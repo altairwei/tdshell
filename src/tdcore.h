@@ -40,6 +40,7 @@ public:
   std::string get_user_name(std::int64_t user_id) const;
 
   void getChatHistory(std::promise<MessagesPtr>&, td_api::int53 chat_id, const uint32_t limit = 20);
+  void downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> message_ids);
 
 private:
   std::unique_ptr<td::ClientManager> client_manager_;
@@ -53,6 +54,7 @@ private:
   std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
 
   std::unique_ptr<ScopedThread> thread_;
+  std::map<std::int64_t, std::string> filenames_;
 
   bool are_authorized_{false};
   bool need_restart_{false};
@@ -75,6 +77,8 @@ private:
       }
     };
   }
+
+  void print_progress(td_api::updateFile &update_file);
 };
 
 #endif // TDCORE_H
