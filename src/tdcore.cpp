@@ -9,32 +9,6 @@
 
 std::mutex output_lock;
 
-// overloaded
-namespace detail {
-template <class... Fs>
-struct overload;
-
-template <class F>
-struct overload<F> : public F {
-  explicit overload(F f) : F(f) {
-  }
-};
-template <class F, class... Fs>
-struct overload<F, Fs...>
-    : public overload<F>
-    , public overload<Fs...> {
-  overload(F f, Fs... fs) : overload<F>(f), overload<Fs...>(fs...) {
-  }
-  using overload<F>::operator();
-  using overload<Fs...>::operator();
-};
-}  // namespace detail
-
-template <class... F>
-auto overloaded(F... f) {
-  return detail::overload<F...>(f...);
-}
-
 TdCore::TdCore() {
   td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
   client_manager_ = std::make_unique<td::ClientManager>();
@@ -136,6 +110,7 @@ void TdCore::process_update(td_api::object_ptr<td_api::Object> update) {
                       //          << "]" << std::endl;
                     },
                     [this](td_api::updateFile &update_file) {
+                      std::lock_guard<std::mutex> guard{output_lock};
                       print_progress(update_file);
                     },
                     [](auto &update) {}));
@@ -337,32 +312,44 @@ void TdCore::downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> messa
   for (size_t i = 0; i < MsgObjs.size(); i++) {
     auto &msg = MsgObjs[i];
     auto &prom = promises[i];
-    if (msg->content_->get_id() == td_api::messageDocument::ID) {
-      auto &content = static_cast<td_api::messageDocument &>(*msg->content_);
-      auto file_id = content.document_->document_->id_;
-      filenames_.insert({file_id, content.document_->file_name_});
 
-      send_query(
-        td_api::make_object<td_api::downloadFile>(file_id, 32, 0, 0, true),
-        [this, &prom](TdCore::Object object) {
-          if (object->get_id() == td_api::error::ID) {
-            prom.set_exception(std::make_exception_ptr(std::logic_error("downloadFile failed")));
-            return;
-          }
+    std::int32_t file_id;
+    std::string filename;
+  
+    td_api::downcast_call(
+      *(msg->content_), overloaded(
+        [this, &file_id, &filename](td_api::messageDocument &content) {
+          file_id = content.document_->document_->id_;
+          filename = content.document_->file_name_;
+        },
+        [this, &file_id, &filename](td_api::messageVideo &content) {
+          file_id = content.video_->video_->id_;
+          filename = content.video_->file_name_;
+        },
+        [](auto &content) {}
+      )
+    );
 
-          prom.set_value(td::move_tl_object_as<td_api::file>(object));
+    filenames_.insert({file_id, filename});
+
+    send_query(
+      td_api::make_object<td_api::downloadFile>(file_id, 32, 0, 0, true),
+      [this, &prom](TdCore::Object object) {
+        if (object->get_id() == td_api::error::ID) {
+          prom.set_exception(std::make_exception_ptr(std::logic_error("downloadFile failed")));
+          return;
         }
-      );
-    }
+
+        prom.set_value(td::move_tl_object_as<td_api::file>(object));
+      }
+    );
   }
 
   for (auto &prom : promises) {
-    // TODO: Check downloaded.
     auto file = prom.get_future().get();
-    if (file->local_->is_downloading_completed_) {
-      filenames_.erase(file->id_);
-    }
   }
+
+  filenames_.clear();
 }
 
 static inline void move_up(int lines) { std::cout << "\033[" << lines << "A"; }
@@ -372,8 +359,9 @@ void TdCore::print_progress(td_api::updateFile &update_file) {
   double down = update_file.file_->local_->downloaded_size_;
   double progress = down / total;
 
-  int barWidth = 70;
-  std::cout << filenames_[update_file.file_->id_];
+  std::string filename = filenames_[update_file.file_->id_];
+  int barWidth = 50;
+  std::cout << filename;
   std::cout << " [";
   int pos = barWidth * progress;
   for (int i = 0; i < barWidth; ++i) {
@@ -382,5 +370,11 @@ void TdCore::print_progress(td_api::updateFile &update_file) {
       else std::cout << " ";
   }
   std::cout << "] " << int(progress * 100.0) << " %\r";
+
+  if (update_file.file_->local_->is_downloading_completed_) {
+    std::cout << std::endl;
+    std::cout << update_file.file_->local_->path_ << std::endl;
+  }
+
   std::cout.flush();
 }

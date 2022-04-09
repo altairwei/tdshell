@@ -52,27 +52,38 @@ public:
         core_->getChatHistory(prom, chat_id, limit == 0 ? 50 : limit);
         auto messages = fut.get();
         for (auto &msg : messages->messages_) {
-          std::int32_t msg_id = msg->content_->get_id();
-          if (msg_id == td_api::messageText::ID) {
-            std::string text = static_cast<td_api::messageText &>(*msg->content_).text_->text_;
-            std::cout << "[msg_id: " << msg->id_ << "] [type: Text] [text: "
-                      << text << "]" << std::endl;
-          } else if (msg_id == td_api::messageVideo::ID) {
-            auto &content = static_cast<td_api::messageVideo &>(*msg->content_);
-            std::cout << "[msg_id: " << msg->id_ << "] [type: Video] [text: "
-                      << content.caption_->text_ << "]" << std::endl;
-          } else if (msg_id == td_api::messageDocument::ID) {
-            auto &content = static_cast<td_api::messageDocument &>(*msg->content_);
-            std::cout << "[msg_id: " << msg->id_ << "] [type: Document] [text: "
-                      << content.document_->file_name_ << "]" << std::endl;
-          } else if (msg_id == td_api::messagePhoto::ID) {
-            auto &content = static_cast<td_api::messagePhoto &>(*msg->content_);
-            std::cout << "[msg_id: " << msg->id_ << "] [type: Photo] [text: "
-                      << content.caption_->text_ << "]" << std::endl;
-          } else {
-            std::cout << "[msg_id: " << msg->id_ << "] [text: "
-                      << "Unsupported" << "]" << std::endl;
-          }            
+          std::lock_guard<std::mutex> guard{output_lock};
+
+          std::cout << "[msg_id: " << msg->id_ << "] ";
+          td_api::downcast_call(
+              *(msg->content_), overloaded(
+                [this](td_api::messageText &content) {
+                  std::cout << "[type: Text] [text: "
+                            << content.text_->text_ << "]" << std::endl;
+                },
+                [this](td_api::messageVideo &content) {
+                  std::cout << "[type: Video] [caption: "
+                            << content.caption_->text_ << "] "
+                            << "[video: " << content.video_->file_name_ << "]"
+                            << std::endl;
+                },
+                [this](td_api::messageDocument &content) {
+                  std::cout << "[type: Document] [text: "
+                            << content.document_->file_name_ << "]" << std::endl;
+                },
+                [this](td_api::messagePhoto &content) {
+                  std::cout << "[type: Photo] [text: "
+                            << content.caption_->text_ << "]" << std::endl;
+                },
+                [this](td_api::messagePinMessage &content){
+                  std::cout << "[type: Pin] [ pinned message: "
+                            << content.message_id_ << "]" << std::endl;
+                },
+                [](auto &content) {
+                  std::cout << "[text: Unsupported" << "]" << std::endl;
+                }
+              )
+          );
         }
       } else if (action == "download") {
         std::int64_t chat_id;
