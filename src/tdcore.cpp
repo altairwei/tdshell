@@ -229,7 +229,7 @@ std::string TdCore::get_chat_title(std::int64_t chat_id) const {
   return it->second;
 }
 
-std::int64_t TdCore::get_chat_id(const std::string & title) const
+int64_t TdCore::get_chat_id(const std::string & title) const
 {
   auto result = std::find_if(
     chat_title_.cbegin(),
@@ -273,7 +273,7 @@ void TdCore::getChatHistory(std::promise<MessagesPtr>& prom, td_api::int53 chat_
 
   send_query(
     td_api::make_object<td_api::getChatHistory>(
-      chat_id, chat->last_message_->id_, 0, limit, false),
+      chat_id, chat->last_message_->id_, -1, limit, false),
     [this, &prom](Object object) {
       if (object->get_id() == td_api::error::ID) {
         prom.set_exception(std::make_exception_ptr(std::logic_error("getChatHistory failed")));
@@ -377,4 +377,8 @@ void TdCore::print_progress(td_api::updateFile &update_file) {
   }
 
   std::cout.flush();
+}
+
+void TdCore::updateChatList(int64_t id, std::string title) {
+  chat_title_[id] = title;
 }

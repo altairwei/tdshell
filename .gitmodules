@@ -1,3 +1,6 @@
 [submodule "src/3rdparty/td"]
 	path = src/3rdparty/td
 	url = https://github.com/tdlib/td.git
+[submodule "src/3rdparty/cli"]
+	path = src/3rdparty/cli
+	url = https://github.com/daniele77/cli.git

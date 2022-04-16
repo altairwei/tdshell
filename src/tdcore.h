@@ -62,11 +62,13 @@ public:
   void getChats(std::promise<ChatsPtr>&, const uint32_t limit = 20);
   void getChat(std::promise<ChatPtr>&, std::int64_t chat_id);
   std::string get_chat_title(std::int64_t chat_id) const;
-  std::int64_t get_chat_id(const std::string & title) const;
+  int64_t get_chat_id(const std::string & title) const;
   std::string get_user_name(std::int64_t user_id) const;
 
   void getChatHistory(std::promise<MessagesPtr>&, td_api::int53 chat_id, const uint32_t limit = 20);
   void downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> message_ids);
+
+  void updateChatList(int64_t id, std::string title);
 
 private:
   std::unique_ptr<td::ClientManager> client_manager_;

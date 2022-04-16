@@ -1,122 +1,92 @@
-#include "tdcore.h"
+#include "tdshell.h"
 
-#include <iostream>
-#include <sstream>
+#include <cli/cli.h>
+#include <cli/clilocalsession.h>
+#include <cli/loopscheduler.h>
 
-#include "common.h"
+using namespace cli;
 
-class TdShell {
-public:
-  TdShell() {
-    core_ = std::make_unique<TdCore>();
-    core_->start();
+std::vector<std::string> str_split(std::string str, std::string sep){
+  char* cstr = const_cast<char*>(str.c_str());
+  char* current;
+  std::vector<std::string> arr;
+  current = strtok(cstr, sep.c_str());
+  while(current != NULL) {
+    arr.push_back(current);
+    current = strtok(NULL,sep.c_str());
   }
 
-  void loop() {
-    core_->waitLogin();
-    while (true) {
-      std::string line;
-      {
-        std::lock_guard<std::mutex> guard{output_lock};
-        std::cout << "tdshell > ";
-        std::getline(std::cin, line);
-      }
-      std::istringstream ss(line);
-      std::string action;
-      if (!(ss >> action)) {
-        continue;
-      }
-
-      if (action == "quit" || action == "exit") {
-        core_->stop();
-        return;
-      }
-
-      if (action == "chats") {
-        std::promise<ChatsPtr> prom;
-        auto fut = prom.get_future();
-        core_->getChats(prom, 100);
-        auto chats = fut.get();
-        for (auto chat_id : chats->chat_ids_) {
-          std::cout << "[chat_id: " << chat_id << "] [title: "
-                    << core_->get_chat_title(chat_id) << "]" << std::endl;
-        }
-      } else if (action == "history") {
-        std::int64_t chat_id;
-        ss >> chat_id;
-        std::uint32_t limit;
-        ss >> limit;
-
-        std::promise<MessagesPtr> prom;
-        auto fut = prom.get_future();
-        core_->getChatHistory(prom, chat_id, limit == 0 ? 50 : limit);
-        auto messages = fut.get();
-        for (auto &msg : messages->messages_) {
-          std::lock_guard<std::mutex> guard{output_lock};
-
-          std::cout << "[msg_id: " << msg->id_ << "] ";
-          td_api::downcast_call(
-              *(msg->content_), overloaded(
-                [this](td_api::messageText &content) {
-                  std::cout << "[type: Text] [text: "
-                            << content.text_->text_ << "]" << std::endl;
-                },
-                [this](td_api::messageVideo &content) {
-                  std::cout << "[type: Video] [caption: "
-                            << content.caption_->text_ << "] "
-                            << "[video: " << content.video_->file_name_ << "]"
-                            << std::endl;
-                },
-                [this](td_api::messageDocument &content) {
-                  std::cout << "[type: Document] [text: "
-                            << content.document_->file_name_ << "]" << std::endl;
-                },
-                [this](td_api::messagePhoto &content) {
-                  std::cout << "[type: Photo] [text: "
-                            << content.caption_->text_ << "]" << std::endl;
-                },
-                [this](td_api::messagePinMessage &content){
-                  std::cout << "[type: Pin] [ pinned message: "
-                            << content.message_id_ << "]" << std::endl;
-                },
-                [](auto &content) {
-                  std::cout << "[text: Unsupported" << "]" << std::endl;
-                }
-              )
-          );
-        }
-      } else if (action == "download") {
-        std::int64_t chat_id;
-        ss >> chat_id;
-        std::int32_t message_id;
-        std::vector<std::int32_t> messages;
-        while(ss >> message_id) {
-          messages.push_back(message_id);
-        }
-
-        core_->downloadFiles(chat_id, messages);
-      }
-
-    }
-  }
-
-private:
-  void console(const std::string &msg) {
-    std::lock_guard<std::mutex> guard{output_lock};
-    std::cout << msg << std::endl;
-  }
-
-private:
-  std::unique_ptr<TdCore> core_;
-
-};
-
+  return arr;
+}
 
 int main() {
-  {
+  try {
     TdShell shell;
-    shell.loop();
-  }
+    shell.open();
 
-  return 0;
+    auto rootMenu = std::make_unique<Menu>("tdshell");
+    rootMenu->Insert(
+      "chats",
+      [&shell](std::ostream& out) { shell.cmdChats(out); },
+      "Get chat list.");
+    rootMenu->Insert(
+      "history",
+      [&shell](std::ostream& out, int64_t chat_id, uint limit = 20) {
+        shell.cmdHistory(out, chat_id, limit);
+      },
+      "Get the history of a chat.",
+      {"chat_id", "limit"}
+    );
+    rootMenu->Insert(
+      "history",
+      [&shell](std::ostream& out, std::string chat_title, uint limit = 20) {
+        try {
+          shell.cmdHistory(out, chat_title, limit);
+        } catch(const std::exception& e) {
+          out << e.what() << std::endl;
+          out << "Please use command 'chats' to update chat list." << std::endl;
+        }
+      },
+      "Get the history of a chat.",
+      {"chat_title", "limit"}
+    );
+    rootMenu->Insert(
+      "download",
+      [&shell](std::ostream& out, int64_t chat_id, std::string messages) {
+        auto msg_arr = str_split(messages, ",");
+        std::vector<int32_t> msg_ids;
+        for (auto &id : msg_arr) {
+          msg_ids.push_back(std::stol(id));
+        }
+        shell.cmdDownload(out, chat_id, msg_ids);
+      },
+      "Download file in a message.",
+      {"chat_id", "message_ids seperated by comma"}
+    );
+
+    Cli cli(std::move(rootMenu));
+    SetColor();
+
+    LoopScheduler scheduler;
+    CliLocalTerminalSession localSession(cli, scheduler, std::cout, 200);
+    localSession.ExitAction(
+      [&scheduler, &shell](auto& out)
+      {
+        out << "Closing Shell...\n";
+        shell.close();
+        scheduler.Stop();
+      }
+    );
+
+    scheduler.Run();
+
+    return 0;
+
+  } catch (const std::exception& e) {
+      std::cerr << "Exception caugth in main: " << e.what() << std::endl;
+  } catch (...) {
+      std::cerr << "Unknown exception caugth in main." << std::endl;
+  };
+
+  return -1;
 }
