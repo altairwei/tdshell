@@ -26,6 +26,9 @@ include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>/3rdparty/td/t
 add_subdirectory("3rdparty/cli/")
 include_directories ("3rdparty/cli/include")
 
+add_subdirectory("3rdparty/termcolor/")
+include_directories ("3rdparty/termcolor/include")
+
 set (TDSHELL_SOURCE
     main.cpp
     tdcore.h

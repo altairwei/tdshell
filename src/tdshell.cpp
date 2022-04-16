@@ -1,5 +1,8 @@
 #include "tdshell.h"
 
+#include <cli/detail/rang.h>
+#include <termcolor/termcolor.hpp>
+
 TdShell::TdShell() {
   core_ = std::make_unique<TdCore>();
 }
@@ -107,4 +110,8 @@ void TdShell::cmdHistory(std::ostream& out, int64_t chat_id, uint limit) {
         )
     );
   }
+}
+
+void TdShell::error(std::ostream& out, std::string msg) {
+  out << termcolor::red << msg << termcolor::reset << std::endl;
 }

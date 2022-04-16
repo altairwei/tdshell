@@ -4,3 +4,6 @@
 [submodule "src/3rdparty/cli"]
 	path = src/3rdparty/cli
 	url = https://github.com/daniele77/cli.git
+[submodule "src/3rdparty/termcolor"]
+	path = src/3rdparty/termcolor
+	url = https://github.com/ikalnytskyi/termcolor.git

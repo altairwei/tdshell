@@ -43,8 +43,8 @@ int main() {
         try {
           shell.cmdHistory(out, chat_title, limit);
         } catch(const std::exception& e) {
-          out << e.what() << std::endl;
-          out << "Please use command 'chats' to update chat list." << std::endl;
+          shell.error(out, e.what());
+          shell.error(out, "Please use command 'chats' to update chat list.");
         }
       },
       "Get the history of a chat.",

@@ -20,6 +20,8 @@ public:
   void cmdHistory(std::ostream& out, std::string chat_title, uint limit);
   void cmdChats(std::ostream& out);
 
+  void error(std::ostream& out, std::string msg);
+
 private:
   std::unique_ptr<TdCore> core_;
 
