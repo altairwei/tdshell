@@ -10,14 +10,7 @@
 #include <td/telegram/td_api.hpp>
 
 #include "scopedthread.h"
-
-namespace td_api = td::td_api;
-
-typedef td::tl_object_ptr<td_api::chats> ChatsPtr;
-typedef td::tl_object_ptr<td_api::chat> ChatPtr;
-typedef td::tl_object_ptr<td_api::messages> MessagesPtr;
-typedef td::tl_object_ptr<td_api::message> MessagePtr;
-typedef td::tl_object_ptr<td_api::file> FilePtr;
+#include "common.h"
 
 // overloaded
 namespace detail {
@@ -48,16 +41,13 @@ auto overloaded(F... f) {
 class TdCore {
 
 public:
-  using Object = td_api::object_ptr<td_api::Object>;
-
-public:
   TdCore();
 
   void start();
   void stop();
   void waitLogin();
 
-  void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler);
+  void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler);
 
   void getChats(std::promise<ChatsPtr>&, const uint32_t limit = 20);
   void getChat(std::promise<ChatPtr>&, std::int64_t chat_id);
@@ -66,7 +56,7 @@ public:
   std::string get_user_name(std::int64_t user_id) const;
 
   void getChatHistory(std::promise<MessagesPtr>&, td_api::int53 chat_id, const uint32_t limit = 20);
-  void downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> message_ids);
+  void downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids);
 
   void updateChatList(int64_t id, std::string title);
 
@@ -74,7 +64,7 @@ private:
   std::unique_ptr<td::ClientManager> client_manager_;
   std::int32_t client_id_{0};
   std::uint64_t current_query_id_{1};
-  std::map<std::uint64_t, std::function<void(Object)>> handlers_;
+  std::map<std::uint64_t, std::function<void(ObjectPtr)>> handlers_;
 
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
   std::uint64_t authentication_query_id_{0};
@@ -96,10 +86,10 @@ private:
   void process_response(td::ClientManager::Response response);
   void process_update(td_api::object_ptr<td_api::Object> update);
   void on_authorization_state_update();
-  void check_authentication_error(Object object);
+  void check_authentication_error(ObjectPtr object);
 
   auto create_authentication_query_handler() {
-    return [this, id = authentication_query_id_](Object object) {
+    return [this, id = authentication_query_id_](ObjectPtr object) {
       if (id == authentication_query_id_) {
         check_authentication_error(std::move(object));
       }

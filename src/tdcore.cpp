@@ -5,8 +5,6 @@
 #include <mutex>
 #include <algorithm>
 
-#include "common.h"
-
 std::mutex output_lock;
 
 TdCore::TdCore() {
@@ -43,7 +41,7 @@ void TdCore::waitLogin()
 
 }
 
-void TdCore::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
+void TdCore::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler) {
   auto query_id = next_query_id();
   if (handler) {
     handlers_.emplace(query_id, std::move(handler));
@@ -200,7 +198,7 @@ void TdCore::on_authorization_state_update() {
           }));
 }
 
-void TdCore::check_authentication_error(Object object) {
+void TdCore::check_authentication_error(ObjectPtr object) {
   if (object->get_id() == td_api::error::ID) {
     auto error = td::move_tl_object_as<td_api::error>(object);
     std::cout << "Error: " << to_string(error) << std::flush;
@@ -244,7 +242,7 @@ int64_t TdCore::get_chat_id(const std::string & title) const
 }
 
 void TdCore::getChats(std::promise<ChatsPtr> &prom, const uint32_t limit) {
-  send_query(td_api::make_object<td_api::getChats>(nullptr, limit), [this, &prom](Object object) {
+  send_query(td_api::make_object<td_api::getChats>(nullptr, limit), [this, &prom](ObjectPtr object) {
     if (object->get_id() == td_api::error::ID) {
       prom.set_exception(std::make_exception_ptr(std::logic_error("getChats failed")));
       return;
@@ -255,7 +253,7 @@ void TdCore::getChats(std::promise<ChatsPtr> &prom, const uint32_t limit) {
 }
 
 void TdCore::getChat(std::promise<ChatPtr>& prom, std::int64_t chat_id) {
-  send_query(td_api::make_object<td_api::getChat>(chat_id), [this, &prom](Object object) {
+  send_query(td_api::make_object<td_api::getChat>(chat_id), [this, &prom](ObjectPtr object) {
     if (object->get_id() == td_api::error::ID) {
       prom.set_exception(std::make_exception_ptr(std::logic_error("getChat failed")));
       return;
@@ -274,7 +272,7 @@ void TdCore::getChatHistory(std::promise<MessagesPtr>& prom, td_api::int53 chat_
   send_query(
     td_api::make_object<td_api::getChatHistory>(
       chat_id, chat->last_message_->id_, -1, limit, false),
-    [this, &prom](Object object) {
+    [this, &prom](ObjectPtr object) {
       if (object->get_id() == td_api::error::ID) {
         prom.set_exception(std::make_exception_ptr(std::logic_error("getChatHistory failed")));
         return;
@@ -285,14 +283,14 @@ void TdCore::getChatHistory(std::promise<MessagesPtr>& prom, td_api::int53 chat_
   );
 }
 
-void TdCore::downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> message_ids) {
+void TdCore::downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids) {
   std::vector<MessagePtr> MsgObjs;
   for (auto msg_id : message_ids) {
     std::promise<MessagePtr> prom;
     auto fut = prom.get_future();
     send_query(
       td_api::make_object<td_api::getMessage>(chat_id, msg_id),
-      [this, &prom](TdCore::Object object) {
+      [this, &prom](ObjectPtr object) {
         if (object->get_id() == td_api::error::ID) {
           prom.set_exception(std::make_exception_ptr(std::logic_error("getMessage failed")));
           return;
@@ -315,26 +313,32 @@ void TdCore::downloadFiles(std::int64_t chat_id, std::vector<std::int32_t> messa
 
     std::int32_t file_id;
     std::string filename;
-  
+    bool can_be_downloaded;
+
     td_api::downcast_call(
       *(msg->content_), overloaded(
-        [this, &file_id, &filename](td_api::messageDocument &content) {
+        [&](td_api::messageDocument &content) {
           file_id = content.document_->document_->id_;
           filename = content.document_->file_name_;
+          can_be_downloaded = content.document_->document_->local_->can_be_downloaded_;
         },
-        [this, &file_id, &filename](td_api::messageVideo &content) {
+        [&](td_api::messageVideo &content) {
           file_id = content.video_->video_->id_;
           filename = content.video_->file_name_;
+          can_be_downloaded = content.video_->video_->local_->can_be_downloaded_;
         },
         [](auto &content) {}
       )
     );
 
+    if (!can_be_downloaded)
+      throw std::logic_error("File can't be download: " + filename);
+
     filenames_.insert({file_id, filename});
 
     send_query(
       td_api::make_object<td_api::downloadFile>(file_id, 32, 0, 0, true),
-      [this, &prom](TdCore::Object object) {
+      [this, &prom](ObjectPtr object) {
         if (object->get_id() == td_api::error::ID) {
           prom.set_exception(std::make_exception_ptr(std::logic_error("downloadFile failed")));
           return;

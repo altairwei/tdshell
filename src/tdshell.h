@@ -15,12 +15,15 @@ public:
   void open();
   void close();
 
-  void cmdDownload(std::ostream& out, int64_t chat_id, std::vector<int32_t> &message_ids);
+  void cmdDownload(std::ostream& out, int64_t chat_id, std::vector<int64_t> &message_ids);
   void cmdHistory(std::ostream& out, int64_t chat_id, uint limit);
   void cmdHistory(std::ostream& out, std::string chat_title, uint limit);
   void cmdChats(std::ostream& out);
+  void cmdOpenContent(std::ostream& out, int64_t chat_id, int64_t msg_id);
+  void cmdReadFile(std::ostream& out, int64_t chat_id, int64_t msg_id);
 
   void error(std::ostream& out, std::string msg);
+  std::map<int32_t, std::string> getFileIdFromMessages(int64_t chat_id, std::vector<int64_t> msg_ids);
 
 private:
   std::unique_ptr<TdCore> core_;

@@ -54,7 +54,7 @@ int main() {
       "download",
       [&shell](std::ostream& out, int64_t chat_id, std::string messages) {
         auto msg_arr = str_split(messages, ",");
-        std::vector<int32_t> msg_ids;
+        std::vector<int64_t> msg_ids;
         for (auto &id : msg_arr) {
           msg_ids.push_back(std::stol(id));
         }
