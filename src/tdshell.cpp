@@ -61,17 +61,89 @@ void TdShell::cmdChats(std::ostream& out) {
   }
 }
 
+static void printProgress(std::ostream& out, std::string filename, int32_t total, int32_t downloaded) {
+  double progress = double(downloaded) / double(total);
+
+  int barWidth = 50;
+  out << filename;
+  out << " [";
+  int pos = barWidth * progress;
+  for (int i = 0; i < barWidth; ++i) {
+      if (i < pos) out << "=";
+      else if (i == pos) out << ">";
+      else out << " ";
+  }
+  out << "] " << int(progress * 100.0) << " %\r";
+
+  out.flush();
+}
+
 void TdShell::cmdDownload(
     std::ostream& out,
     int64_t chat_id,
     std::vector<int64_t> &message_ids) {
 
-  try {
-    core_->downloadFiles(chat_id, message_ids);
-  } catch (const std::exception& e) {
-    error(out, e.what());
+  std::vector<MessagePtr> MsgObjs;
+  for (auto msg_id : message_ids) {
+    MsgObjs.emplace_back(std::move(
+      core_->invoke<td_api::getMessage>(chat_id, msg_id)
+    ));
   }
 
+  std::vector<std::promise<bool>> promises;
+  for (size_t i = 0; i < MsgObjs.size(); i++) {
+    promises.emplace_back();
+  }
+
+  for (size_t i = 0; i < MsgObjs.size(); i++) {
+    auto &msg = MsgObjs[i];
+    auto &prom = promises[i];
+
+    std::int32_t file_id;
+    std::string filename;
+    bool can_be_downloaded;
+    bool is_downloading_completed;
+
+    td_api::downcast_call(
+      *(msg->content_), overloaded(
+        [&](td_api::messageDocument &content) {
+          file_id = content.document_->document_->id_;
+          filename = content.document_->file_name_;
+          can_be_downloaded = content.document_->document_->local_->can_be_downloaded_;
+          is_downloading_completed = content.document_->document_->local_->is_downloading_completed_;
+        },
+        [&](td_api::messageVideo &content) {
+          file_id = content.video_->video_->id_;
+          filename = content.video_->file_name_;
+          can_be_downloaded = content.video_->video_->local_->can_be_downloaded_;
+          is_downloading_completed = content.video_->video_->local_->is_downloading_completed_;
+        },
+        [](auto &content) {}
+      )
+    );
+
+    if (!can_be_downloaded)
+      throw std::logic_error("File can't be download: " + filename);
+
+    if (is_downloading_completed) {
+      prom.set_value(true);
+    } else {
+      core_->addDownloadHandler(file_id, [&out, &prom, filename](FilePtr file) {
+        printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
+        if (file->local_->is_downloading_completed_) {
+          out << std::endl;
+          out << file->local_->path_ << std::endl;
+          prom.set_value(true);
+        }
+      });
+
+      core_->invoke<td_api::downloadFile>(file_id, 32, 0, 0, false);
+    }
+  }
+
+  for (auto &prom : promises) {
+    prom.get_future().wait();
+  }
 }
 
 void TdShell::cmdHistory(std::ostream& out, std::string chat_title, uint limit)
@@ -227,42 +299,24 @@ std::map<int32_t, std::string> TdShell::getFileIdFromMessages(
   std::vector<MessagePtr> MsgObjs;
   for (auto msg_id : msg_ids) {
     std::promise<MessagePtr> prom;
-    auto fut = prom.get_future();
-    core_->send_query(
-      td_api::make_object<td_api::getMessage>(chat_id, msg_id),
-      [this, &prom](ObjectPtr object) {
-        if (object->get_id() == td_api::error::ID) {
-          prom.set_exception(std::make_exception_ptr(std::logic_error("getMessage failed")));
-          return;
-        }
-
-        prom.set_value(td::move_tl_object_as<td_api::message>(object));
-      }
-    );
-    MsgObjs.push_back(std::move(fut.get()));
-  }
-
-  std::vector<std::promise<FilePtr>> promises;
-  for (size_t i = 0; i < MsgObjs.size(); i++) {
-    promises.push_back(std::promise<FilePtr>());
+    core_->make_query<td_api::getMessage>(prom, chat_id, msg_id);
+    MsgObjs.push_back(std::move(prom.get_future().get()));
   }
 
   std::map<int32_t, std::string> filenames;
-
   for (size_t i = 0; i < MsgObjs.size(); i++) {
     auto &msg = MsgObjs[i];
-    auto &prom = promises[i];
 
     std::int32_t file_id;
     std::string filename;
   
     td_api::downcast_call(
       *(msg->content_), overloaded(
-        [this, &file_id, &filename](td_api::messageDocument &content) {
+        [&](td_api::messageDocument &content) {
           file_id = content.document_->document_->id_;
           filename = content.document_->file_name_;
         },
-        [this, &file_id, &filename](td_api::messageVideo &content) {
+        [&](td_api::messageVideo &content) {
           file_id = content.video_->video_->id_;
           filename = content.video_->file_name_;
         },

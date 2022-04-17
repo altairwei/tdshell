@@ -65,6 +65,13 @@ public:
     );
   }
 
+  template<typename FUN, typename ... Args>
+  typename FUN::ReturnType invoke(Args... args) {
+    std::promise<typename FUN::ReturnType> prom;
+    make_query<FUN>(prom, args...);
+    return std::move(prom.get_future().get());
+  }
+
   void getChats(std::promise<ChatsPtr>&, const uint32_t limit = 20);
   void getChat(std::promise<ChatPtr>&, std::int64_t chat_id);
   std::string get_chat_title(std::int64_t chat_id) const;
@@ -75,12 +82,16 @@ public:
   void downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids);
 
   void updateChatList(int64_t id, std::string title);
+  void addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler);
+  void removeDownloadHandler(int32_t id);
+  std::function<void(FilePtr)>& getDownloadHandler(int32_t id);
 
 private:
   std::unique_ptr<td::ClientManager> client_manager_;
   std::int32_t client_id_{0};
   std::uint64_t current_query_id_{1};
   std::map<std::uint64_t, std::function<void(ObjectPtr)>> handlers_;
+  std::map<std::int32_t, std::function<void(FilePtr)>> download_handlers_;
 
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
   std::uint64_t authentication_query_id_{0};
@@ -88,7 +99,6 @@ private:
   std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
 
   std::unique_ptr<ScopedThread> thread_;
-  std::map<std::int64_t, std::string> filenames_;
 
   bool are_authorized_{false};
   bool need_restart_{false};
