@@ -122,9 +122,14 @@ static void printProgress(std::ostream& out, std::string filename, int32_t total
   out.flush();
 }
 
-void TdShell::cmdDownload(std::ostream& out, std::string link) {
-  auto info = core_->invoke<td_api::getMessageLinkInfo>(link);
-  cmdDownload(out, (int64_t) info->chat_id_, {info->message_->id_});
+void TdShell::cmdDownload(std::ostream& out, std::vector<std::string> links) {
+  std::vector<MessagePtr> messages;
+  for (auto &link : links) {
+    auto info = core_->invoke<td_api::getMessageLinkInfo>(link);
+    messages.emplace_back(std::move(info->message_));
+  }
+
+  downloadFileInMessages(out, std::move(messages));
 }
 
 void TdShell::cmdDownload(std::ostream& out, std::string chat, std::vector<int64_t> message_ids) {
@@ -132,11 +137,7 @@ void TdShell::cmdDownload(std::ostream& out, std::string chat, std::vector<int64
   cmdDownload(out, chat_id, message_ids);
 }
 
-void TdShell::cmdDownload(
-    std::ostream& out,
-    int64_t chat_id,
-    std::vector<int64_t> message_ids) {
-
+void TdShell::cmdDownload(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids) {
   std::vector<MessagePtr> MsgObjs;
   for (auto msg_id : message_ids) {
     MsgObjs.emplace_back(std::move(
@@ -144,13 +145,17 @@ void TdShell::cmdDownload(
     ));
   }
 
+  downloadFileInMessages(out, std::move(MsgObjs));
+}
+
+void TdShell::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages) {
   std::vector<std::promise<bool>> promises;
-  for (size_t i = 0; i < MsgObjs.size(); i++) {
+  for (size_t i = 0; i < messages.size(); i++) {
     promises.emplace_back();
   }
 
-  for (size_t i = 0; i < MsgObjs.size(); i++) {
-    auto &msg = MsgObjs[i];
+  for (size_t i = 0; i < messages.size(); i++) {
+    auto &msg = messages[i];
     auto &prom = promises[i];
 
     std::int32_t file_id;

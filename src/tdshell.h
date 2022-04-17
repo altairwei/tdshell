@@ -15,9 +15,11 @@ public:
   void open();
   void close();
 
+  void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages);
   void cmdDownload(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);
   void cmdDownload(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids);
-  void cmdDownload(std::ostream& out, std::string link);
+  void cmdDownload(std::ostream& out, std::vector<std::string> links);
+
   void cmdHistory(std::ostream& out, int64_t chat_id, uint limit);
   void cmdHistory(std::ostream& out, std::string chat_title, uint limit);
   void cmdHistory(std::ostream& out, std::string chat_title, std::string date, uint limit);

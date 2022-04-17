@@ -65,11 +65,11 @@ int main() {
     );
     rootMenu->Insert(
       "download",
-      [&shell](std::ostream& out, std::string link) {
-        shell.cmdDownload(out, link);
+      [&shell](std::ostream& out, std::string links) {
+        auto link_arr = str_split(links, ",");
+        shell.cmdDownload(out, link_arr);
       },
-      "Download file in a message.",
-      {"chat_id", "message_ids seperated by comma"}
+      "Download file in a message."
     );
     rootMenu->Insert(
       "messagelink",
