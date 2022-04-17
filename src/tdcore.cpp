@@ -241,7 +241,7 @@ int64_t TdCore::get_chat_id(const std::string & title) const
     return 0;
 }
 
-void TdCore::getChats(std::promise<ChatsPtr> &prom, const uint32_t limit) {
+void TdCore::getChats(std::promise<ChatListPtr> &prom, const uint32_t limit) {
   send_query(td_api::make_object<td_api::getChats>(nullptr, limit), [this, &prom](ObjectPtr object) {
     if (object->get_id() == td_api::error::ID) {
       prom.set_exception(std::make_exception_ptr(std::logic_error("getChats failed")));
@@ -263,7 +263,7 @@ void TdCore::getChat(std::promise<ChatPtr>& prom, std::int64_t chat_id) {
   });
 }
 
-void TdCore::getChatHistory(std::promise<MessagesPtr>& prom, td_api::int53 chat_id, const uint32_t limit) {
+void TdCore::getChatHistory(std::promise<MessageListPtr>& prom, td_api::int53 chat_id, const uint32_t limit) {
   std::promise<ChatPtr> chat_prom;
   auto chat_fut = chat_prom.get_future();
   getChat(chat_prom, chat_id);

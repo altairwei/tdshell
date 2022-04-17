@@ -25,7 +25,7 @@ void TdShell::close() {
 }
 
 void TdShell::cmdChats(std::ostream& out) {
-  std::promise<ChatsPtr> prom;
+  std::promise<ChatListPtr> prom;
   core_->getChats(prom, 100);
   auto chats = prom.get_future().get();
 
@@ -42,15 +42,20 @@ void TdShell::cmdChats(std::ostream& out) {
           } else {
             out << "👥 ";
           }
+
+          out << "[super_id: " << type.supergroup_id_ << "] ";
         },
         [&out](td_api::chatTypePrivate &type) {
           out << "👤 ";
+          out << "[user_id: " << type.user_id_ << "] ";
         },
         [&out](td_api::chatTypeSecret &type) {
           out << "👤 ";
+          out << "[secret_id: " << type.secret_chat_id_ << "] ";
         },
         [&out](td_api::chatTypeBasicGroup &type) {
           out << "🙌 ";
+          out << "[basic_id: " << type.basic_group_id_ << "] ";
         }
       )
     );
@@ -59,6 +64,45 @@ void TdShell::cmdChats(std::ostream& out) {
     out << chat->title_;
     out << std::endl;
   }
+}
+
+void TdShell::cmdChatInfo(std::ostream& out, std::string chat_title) {
+  int64_t chat_id = getChatId(chat_title);
+  ChatPtr chat = core_->invoke<td_api::getChat>(chat_id);
+
+  td_api::downcast_call(
+    *(chat->type_), overloaded(
+      [&out](td_api::chatTypeSupergroup &type) {
+        if (type.is_channel_) {
+          out << "📢 ";
+        } else {
+          out << "👥 ";
+        }
+
+        out << "[super_id: " << type.supergroup_id_ << "] ";
+      },
+      [&out](td_api::chatTypePrivate &type) {
+        out << "👤 ";
+        out << "[user_id: " << type.user_id_ << "] ";
+      },
+      [&out](td_api::chatTypeSecret &type) {
+        out << "👤 ";
+        out << "[secret_id: " << type.secret_chat_id_ << "] ";
+      },
+      [&out](td_api::chatTypeBasicGroup &type) {
+        out << "🙌 ";
+        out << "[basic_id: " << type.basic_group_id_ << "] ";
+      }
+    )
+  );
+
+  out << "[chat_id: " << chat->id_ << "] ";
+  out << chat->title_;
+  out << std::endl;
+
+  out << "- last_message: " << chat->last_message_->id_ << std::endl;
+  out << "---- ";
+  printMessage(out, chat->last_message_);
 }
 
 static void printProgress(std::ostream& out, std::string filename, int32_t total, int32_t downloaded) {
@@ -78,10 +122,20 @@ static void printProgress(std::ostream& out, std::string filename, int32_t total
   out.flush();
 }
 
+void TdShell::cmdDownload(std::ostream& out, std::string link) {
+  auto info = core_->invoke<td_api::getMessageLinkInfo>(link);
+  cmdDownload(out, (int64_t) info->chat_id_, {info->message_->id_});
+}
+
+void TdShell::cmdDownload(std::ostream& out, std::string chat, std::vector<int64_t> message_ids) {
+  int64_t chat_id = getChatId(chat);
+  cmdDownload(out, chat_id, message_ids);
+}
+
 void TdShell::cmdDownload(
     std::ostream& out,
     int64_t chat_id,
-    std::vector<int64_t> &message_ids) {
+    std::vector<int64_t> message_ids) {
 
   std::vector<MessagePtr> MsgObjs;
   for (auto msg_id : message_ids) {
@@ -125,9 +179,7 @@ void TdShell::cmdDownload(
     if (!can_be_downloaded)
       throw std::logic_error("File can't be download: " + filename);
 
-    if (is_downloading_completed) {
-      prom.set_value(true);
-    } else {
+    if (!is_downloading_completed) {
       core_->addDownloadHandler(file_id, [&out, &prom, filename](FilePtr file) {
         printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
         if (file->local_->is_downloading_completed_) {
@@ -138,6 +190,8 @@ void TdShell::cmdDownload(
       });
 
       core_->invoke<td_api::downloadFile>(file_id, 32, 0, 0, false);
+    } else {
+      prom.set_value(true);
     }
   }
 
@@ -146,42 +200,34 @@ void TdShell::cmdDownload(
   }
 }
 
-void TdShell::cmdHistory(std::ostream& out, std::string chat_title, uint limit)
-{
+int64_t TdShell::getChatId(std::string chat) {
   int64_t chat_id;
 
   try {
-    chat_id = std::stoll(chat_title);
+    chat_id = std::stoll(chat);
   } catch (std::invalid_argument const& e) {
-    chat_id = core_->get_chat_id(chat_title);
-    if (chat_id == 0) {
-      error(out, "Not found chat " + chat_title);
-      error(out, "Please use command 'chats' to update chat list.");
-      return;
-    }
+    chat_id = core_->get_chat_id(chat);
+    if (chat_id == 0)
+      throw std::logic_error(
+        "Not found chat " + chat +
+        ". Please use command 'chats' to update chat list.");
   }
 
+  return chat_id;
+}
+
+void TdShell::cmdHistory(std::ostream& out, std::string chat_title, uint limit)
+{
+  int64_t chat_id = getChatId(chat_title);
   cmdHistory(out, chat_id, limit);
 }
 
 void TdShell::cmdHistory(std::ostream& out, std::string chat_title, std::string date, uint limit)
 {
-  int64_t chat_id;
-
-  try {
-    chat_id = std::stoll(chat_title);
-  } catch (std::invalid_argument const& e) {
-    chat_id = core_->get_chat_id(chat_title);
-    if (chat_id == 0) {
-      error(out, "Not found chat " + chat_title);
-      error(out, "Please use command 'chats' to update chat list.");
-      return;
-    }
-  }
-
+  int64_t chat_id = getChatId(chat_title);
   std::tm t = {};
   std::istringstream ss(date);
-  ss >> std::get_time(&t, "%Y-%m-%d");
+  ss >> std::get_time(&t, "%Y-%m-%dT%H:%M:%S");
   if (ss.fail()) {
       throw std::logic_error("Parse date failed");
   }
@@ -189,67 +235,68 @@ void TdShell::cmdHistory(std::ostream& out, std::string chat_title, std::string 
   time_t timestamp = std::mktime(&t);
 
   std::promise<MessagePtr> prom1;
-  core_->make_query<td_api::getChatMessageByDate>(prom1, chat_id, timestamp);
+  core_->make_query<td_api::getChatMessageByDate>(prom1, chat_id, (int32_t) timestamp);
   auto msg = prom1.get_future().get();
 
-  std::promise<MessagesPtr> prom2;
+  std::promise<MessageListPtr> prom2;
   core_->make_query<td_api::getChatHistory>(prom2, chat_id, msg->id_, -1, limit, false);
-  MessagesPtr messages = prom2.get_future().get();
+  MessageListPtr messages = prom2.get_future().get();
 
-  printMessages(out, std::move(messages));
+  for (auto &msg : messages->messages_) {
+    printMessage(out, msg);
+  }
 }
 
 void TdShell::cmdHistory(std::ostream& out, int64_t chat_id, uint limit) {
-  std::promise<MessagesPtr> prom;
+  std::promise<MessageListPtr> prom;
   auto fut = prom.get_future();
   core_->getChatHistory(prom, chat_id, limit == 0 ? 50 : limit);
   auto messages = fut.get();
-  printMessages(out, std::move(messages));
+  for (auto &msg : messages->messages_) {
+    printMessage(out, msg);
+  }
 }
 
-void TdShell::printMessages(std::ostream& out, MessagesPtr messages) {
-  for (auto &msg : messages->messages_) {
-    std::lock_guard<std::mutex> guard{output_lock};
+void TdShell::printMessage(std::ostream& out, MessagePtr &msg) {
+  out << "[msg_id: " << msg->id_ << "] ";
+  td_api::downcast_call(
+      *(msg->content_), overloaded(
+        [&out, this](td_api::messageText &content) {
+          out << "[type: Text] [text: "
+              << content.text_->text_ << "]" << std::endl;
+        },
+        [&out, this](td_api::messageVideo &content) {
+          out << "[type: Video] [caption: "
+              << content.caption_->text_ << "] "
+              << "[video: " << content.video_->file_name_ << "]"
+              << std::endl;
+        },
+        [&out, this](td_api::messageDocument &content) {
+          out << "[type: Document] [text: "
+              << content.document_->file_name_ << "]" << std::endl;
+        },
+        [&out, this](td_api::messagePhoto &content) {
+          out << "[type: Photo] [caption: "
+              << content.caption_->text_ << "]" << std::endl;
+        },
+        [&out, this](td_api::messagePinMessage &content) {
+          out << "[type: Pin] [ pinned message: "
+              << content.message_id_ << "]" << std::endl;
+        },
+        [&out, &msg, this](td_api::messageChatJoinByLink &content) {
+          out << "[type: Join] [ A new member joined the chat via an invite link. ]"
+              << std::endl;
+        },
+        [&out, &msg, this](td_api::messageChatJoinByRequest &content) {
+          out << "[type: Join] [ A new member was accepted to the chat by an administrator. ]"
+              << std::endl;
+        },
+        [&out](auto &content) {
+          out << "[text: Unsupported" << "]" << std::endl;
+        }
+      )
+  );
 
-    out << "[msg_id: " << msg->id_ << "] ";
-    td_api::downcast_call(
-        *(msg->content_), overloaded(
-          [&out, this](td_api::messageText &content) {
-            out << "[type: Text] [text: "
-                << content.text_->text_ << "]" << std::endl;
-          },
-          [&out, this](td_api::messageVideo &content) {
-            out << "[type: Video] [caption: "
-                << content.caption_->text_ << "] "
-                << "[video: " << content.video_->file_name_ << "]"
-                << std::endl;
-          },
-          [&out, this](td_api::messageDocument &content) {
-            out << "[type: Document] [text: "
-                << content.document_->file_name_ << "]" << std::endl;
-          },
-          [&out, this](td_api::messagePhoto &content) {
-            out << "[type: Photo] [caption: "
-                << content.caption_->text_ << "]" << std::endl;
-          },
-          [&out, this](td_api::messagePinMessage &content) {
-            out << "[type: Pin] [ pinned message: "
-                << content.message_id_ << "]" << std::endl;
-          },
-          [&out, &msg, this](td_api::messageChatJoinByLink &content) {
-            out << "[type: Join] [ A new member joined the chat via an invite link. ]"
-                << std::endl;
-          },
-          [&out, &msg, this](td_api::messageChatJoinByRequest &content) {
-            out << "[type: Join] [ A new member was accepted to the chat by an administrator. ]"
-                << std::endl;
-          },
-          [&out](auto &content) {
-            out << "[text: Unsupported" << "]" << std::endl;
-          }
-        )
-    );
-  }
 }
 
 void TdShell::cmdOpenContent(std::ostream& out, int64_t chat_id, int64_t msg_id) {
@@ -328,4 +375,9 @@ std::map<int32_t, std::string> TdShell::getFileIdFromMessages(
   }
 
   return filenames;
+}
+
+MessagePtr TdShell::getMessageByLink(std::string link) {
+  auto info = core_->invoke<td_api::getMessageLinkInfo>(link);
+  return std::move(info->message_);
 }

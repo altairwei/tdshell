@@ -31,6 +31,10 @@ int main() {
       [&shell](std::ostream& out) { shell.cmdChats(out); },
       "Get chat list.");
     rootMenu->Insert(
+      "chat_info",
+      [&shell](std::ostream& out, std::string chat) { shell.cmdChatInfo(out, chat); },
+      "Get chat list.");
+    rootMenu->Insert(
       "history",
       [&shell](std::ostream& out, std::string chat_title, uint limit) {
         shell.cmdHistory(out, chat_title, limit);
@@ -48,15 +52,32 @@ int main() {
     );
     rootMenu->Insert(
       "download",
-      [&shell](std::ostream& out, int64_t chat_id, std::string messages) {
+      [&shell](std::ostream& out, std::string chat, std::string messages) {
         auto msg_arr = str_split(messages, ",");
         std::vector<int64_t> msg_ids;
         for (auto &id : msg_arr) {
           msg_ids.push_back(std::stol(id));
         }
-        shell.cmdDownload(out, chat_id, msg_ids);
+        shell.cmdDownload(out, chat, msg_ids);
       },
       "Download file in a message.",
+      {"chat_id", "message_ids seperated by comma"}
+    );
+    rootMenu->Insert(
+      "download",
+      [&shell](std::ostream& out, std::string link) {
+        shell.cmdDownload(out, link);
+      },
+      "Download file in a message.",
+      {"chat_id", "message_ids seperated by comma"}
+    );
+    rootMenu->Insert(
+      "messagelink",
+      [&shell](std::ostream& out, std::string link) {
+        auto msg = shell.getMessageByLink(link);
+        shell.printMessage(out, msg);
+      },
+      "Get message from link.",
       {"chat_id", "message_ids seperated by comma"}
     );
 

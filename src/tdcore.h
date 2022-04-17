@@ -56,7 +56,8 @@ public:
       {
         if (object->get_id() == td_api::error::ID) {
           prom.set_exception(std::make_exception_ptr(
-            std::logic_error("send_query failed")));
+            std::logic_error("send_query failed: " + std::to_string(FUN::ID))
+          ));
           return;
         }
 
@@ -72,13 +73,13 @@ public:
     return std::move(prom.get_future().get());
   }
 
-  void getChats(std::promise<ChatsPtr>&, const uint32_t limit = 20);
+  void getChats(std::promise<ChatListPtr>&, const uint32_t limit = 20);
   void getChat(std::promise<ChatPtr>&, std::int64_t chat_id);
   std::string get_chat_title(std::int64_t chat_id) const;
   int64_t get_chat_id(const std::string & title) const;
   std::string get_user_name(std::int64_t user_id) const;
 
-  void getChatHistory(std::promise<MessagesPtr>&, td_api::int53 chat_id, const uint32_t limit = 20);
+  void getChatHistory(std::promise<MessageListPtr>&, td_api::int53 chat_id, const uint32_t limit = 20);
   void downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids);
 
   void updateChatList(int64_t id, std::string title);
