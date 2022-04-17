@@ -1,5 +1,6 @@
 #include "tdshell.h"
 
+#include <stdexcept>
 #include <cli/cli.h>
 #include <cli/clilocalsession.h>
 #include <cli/loopscheduler.h>
@@ -31,24 +32,19 @@ int main() {
       "Get chat list.");
     rootMenu->Insert(
       "history",
-      [&shell](std::ostream& out, int64_t chat_id, uint limit = 20) {
-        shell.cmdHistory(out, chat_id, limit);
+      [&shell](std::ostream& out, std::string chat_title, uint limit) {
+        shell.cmdHistory(out, chat_title, limit);
       },
       "Get the history of a chat.",
-      {"chat_id", "limit"}
+      {"chat title or id", "limit"}
     );
     rootMenu->Insert(
       "history",
-      [&shell](std::ostream& out, std::string chat_title, uint limit = 20) {
-        try {
-          shell.cmdHistory(out, chat_title, limit);
-        } catch(const std::exception& e) {
-          shell.error(out, e.what());
-          shell.error(out, "Please use command 'chats' to update chat list.");
-        }
+      [&shell](std::ostream& out, std::string chat_title, std::string date, uint limit) {
+        shell.cmdHistory(out, chat_title, date, limit);
       },
-      "Get the history of a chat.",
-      {"chat_title", "limit"}
+      "Get the history of a chat start from given date (such as 2022-04-17).",
+      {"chat title or id", "date string", "limit"}
     );
     rootMenu->Insert(
       "download",

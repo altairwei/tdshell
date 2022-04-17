@@ -1,5 +1,10 @@
 #include "tdshell.h"
 
+#include <iostream>
+#include <sstream>
+#include <locale>
+#include <iomanip>
+
 #include <cli/detail/rang.h>
 #include <termcolor/termcolor.hpp>
 #include <td/telegram/td_api.hpp>
@@ -71,11 +76,55 @@ void TdShell::cmdDownload(
 
 void TdShell::cmdHistory(std::ostream& out, std::string chat_title, uint limit)
 {
-  auto id = core_->get_chat_id(chat_title);
-  if (id == 0)
-    throw std::logic_error("Not found chat " + chat_title);
+  int64_t chat_id;
 
-  cmdHistory(out, id, limit);
+  try {
+    chat_id = std::stoll(chat_title);
+  } catch (std::invalid_argument const& e) {
+    chat_id = core_->get_chat_id(chat_title);
+    if (chat_id == 0) {
+      error(out, "Not found chat " + chat_title);
+      error(out, "Please use command 'chats' to update chat list.");
+      return;
+    }
+  }
+
+  cmdHistory(out, chat_id, limit);
+}
+
+void TdShell::cmdHistory(std::ostream& out, std::string chat_title, std::string date, uint limit)
+{
+  int64_t chat_id;
+
+  try {
+    chat_id = std::stoll(chat_title);
+  } catch (std::invalid_argument const& e) {
+    chat_id = core_->get_chat_id(chat_title);
+    if (chat_id == 0) {
+      error(out, "Not found chat " + chat_title);
+      error(out, "Please use command 'chats' to update chat list.");
+      return;
+    }
+  }
+
+  std::tm t = {};
+  std::istringstream ss(date);
+  ss >> std::get_time(&t, "%Y-%m-%d");
+  if (ss.fail()) {
+      throw std::logic_error("Parse date failed");
+  }
+
+  time_t timestamp = std::mktime(&t);
+
+  std::promise<MessagePtr> prom1;
+  core_->make_query<td_api::getChatMessageByDate>(prom1, chat_id, timestamp);
+  auto msg = prom1.get_future().get();
+
+  std::promise<MessagesPtr> prom2;
+  core_->make_query<td_api::getChatHistory>(prom2, chat_id, msg->id_, -1, limit, false);
+  MessagesPtr messages = prom2.get_future().get();
+
+  printMessages(out, std::move(messages));
 }
 
 void TdShell::cmdHistory(std::ostream& out, int64_t chat_id, uint limit) {
@@ -83,6 +132,10 @@ void TdShell::cmdHistory(std::ostream& out, int64_t chat_id, uint limit) {
   auto fut = prom.get_future();
   core_->getChatHistory(prom, chat_id, limit == 0 ? 50 : limit);
   auto messages = fut.get();
+  printMessages(out, std::move(messages));
+}
+
+void TdShell::printMessages(std::ostream& out, MessagesPtr messages) {
   for (auto &msg : messages->messages_) {
     std::lock_guard<std::mutex> guard{output_lock};
 

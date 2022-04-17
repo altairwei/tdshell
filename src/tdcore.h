@@ -49,6 +49,22 @@ public:
 
   void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler);
 
+  template<typename FUN, typename RET, typename ... Args>
+  void make_query(std::promise<td::tl_object_ptr<RET>> &prom, Args... args) {
+    send_query(td_api::make_object<FUN>(args...),
+      [this, &prom](ObjectPtr object)
+      {
+        if (object->get_id() == td_api::error::ID) {
+          prom.set_exception(std::make_exception_ptr(
+            std::logic_error("send_query failed")));
+          return;
+        }
+
+        prom.set_value(td::move_tl_object_as<RET>(object));
+      }
+    );
+  }
+
   void getChats(std::promise<ChatsPtr>&, const uint32_t limit = 20);
   void getChat(std::promise<ChatPtr>&, std::int64_t chat_id);
   std::string get_chat_title(std::int64_t chat_id) const;
