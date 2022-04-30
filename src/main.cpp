@@ -5,6 +5,8 @@
 #include <cli/clilocalsession.h>
 #include <cli/loopscheduler.h>
 
+#include "common.h"
+
 using namespace cli;
 
 std::vector<std::string> str_split(std::string str, std::string sep){
@@ -52,30 +54,17 @@ int main() {
     );
     rootMenu->Insert(
       "download",
-      [&shell](std::ostream& out, std::string chat, std::string messages) {
-        auto msg_arr = str_split(messages, ",");
-        std::vector<int64_t> msg_ids;
-        for (auto &id : msg_arr) {
-          msg_ids.push_back(std::stol(id));
-        }
-        shell.cmdDownload(out, chat, msg_ids);
+      [&shell](std::ostream& out, std::vector<std::string> args) {
+        shell.execute("download", args, out);
       },
-      "Download file in a message.",
-      {"chat_id", "message_ids seperated by comma"}
-    );
-    rootMenu->Insert(
-      "download",
-      [&shell](std::ostream& out, std::string links) {
-        auto link_arr = str_split(links, ",");
-        shell.cmdDownload(out, link_arr);
-      },
-      "Download file in a message."
+      "Download files in messages.",
+      {"arguments"}
     );
     rootMenu->Insert(
       "messagelink",
       [&shell](std::ostream& out, std::string link) {
         auto msg = shell.getMessageByLink(link);
-        shell.printMessage(out, msg);
+        printMessage(out, msg);
       },
       "Get message from link.",
       {"chat_id", "message_ids seperated by comma"}

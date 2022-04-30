@@ -23,18 +23,18 @@ include_directories ("3rdparty/td/tdtl/")
 include_directories ("3rdparty/td/td/generate/")
 include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>/3rdparty/td/tdutils)
 
-add_subdirectory("3rdparty/cli/")
 include_directories ("3rdparty/cli/include")
-
-add_subdirectory("3rdparty/termcolor/")
 include_directories ("3rdparty/termcolor/include")
+include_directories ("3rdparty/CLI11/include")
 
 set (TDSHELL_SOURCE
     main.cpp
     tdchannel.h
-    tdcore.cpp
+    tdchannel.cpp
     tdshell.h
     tdshell.cpp
+    commands.h
+    commands.cpp
 )
 
 add_executable (tdshell ${TDSHELL_SOURCE} ${TL_TD_JSON_AUTO} )

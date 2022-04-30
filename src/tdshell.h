@@ -3,9 +3,11 @@
 
 #include <iostream>
 #include <sstream>
+#include <cli/cli.h>
 
 #include "tdchannel.h"
 #include "common.h"
+#include "commands.h"
 
 class TdShell {
 
@@ -14,11 +16,7 @@ public:
 
   void open();
   void close();
-
-  void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages);
-  void cmdDownload(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);
-  void cmdDownload(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids);
-  void cmdDownload(std::ostream& out, std::vector<std::string> links);
+  void execute(std::string cmd, std::vector<std::string> &args, std::ostream &out);
 
   void cmdHistory(std::ostream& out, int64_t chat_id, uint limit);
   void cmdHistory(std::ostream& out, std::string chat_title, uint limit);
@@ -31,13 +29,11 @@ public:
   void error(std::ostream& out, std::string msg);
   std::map<int32_t, std::string> getFileIdFromMessages(int64_t chat_id, std::vector<int64_t> msg_ids);
 
-  int64_t getChatId(std::string chat);
-  void printMessage(std::ostream& out, MessagePtr &message);
   MessagePtr getMessageByLink(std::string link);
 
 private:
-  std::unique_ptr<TdChannel> core_;
-
+  std::shared_ptr<TdChannel> channel_;
+  std::map<std::string, std::unique_ptr<Command>> commands_;
 };
 
 #endif // TDSHELL_H

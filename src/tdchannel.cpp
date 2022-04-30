@@ -241,52 +241,6 @@ int64_t TdChannel::get_chat_id(const std::string & title) const
     return 0;
 }
 
-void TdChannel::getChats(std::promise<ChatListPtr> &prom, const uint32_t limit) {
-  send_query(td_api::make_object<td_api::getChats>(nullptr, limit), [this, &prom](ObjectPtr object) {
-    if (object->get_id() == td_api::error::ID) {
-      prom.set_exception(std::make_exception_ptr(std::logic_error("getChats failed")));
-      return;
-    }
-
-    prom.set_value(td::move_tl_object_as<td_api::chats>(object));
-  });
-}
-
-void TdChannel::getChat(std::promise<ChatPtr>& prom, std::int64_t chat_id) {
-  send_query(td_api::make_object<td_api::getChat>(chat_id), [this, &prom](ObjectPtr object) {
-    if (object->get_id() == td_api::error::ID) {
-      prom.set_exception(std::make_exception_ptr(std::logic_error("getChat failed")));
-      return;
-    }
-
-    prom.set_value(td::move_tl_object_as<td_api::chat>(object));
-  });
-}
-
-void TdChannel::getChatHistory(std::promise<MessageListPtr>& prom, td_api::int53 chat_id, const uint32_t limit) {
-  std::promise<ChatPtr> chat_prom;
-  auto chat_fut = chat_prom.get_future();
-  getChat(chat_prom, chat_id);
-  auto chat = chat_fut.get();
-
-  send_query(
-    td_api::make_object<td_api::getChatHistory>(
-      chat_id, chat->last_message_->id_, -1, limit, false),
-    [this, &prom](ObjectPtr object) {
-      if (object->get_id() == td_api::error::ID) {
-        prom.set_exception(std::make_exception_ptr(std::logic_error("getChatHistory failed")));
-        return;
-      }
-
-      prom.set_value(td::move_tl_object_as<td_api::messages>(object));
-    }
-  );
-}
-
-void TdChannel::downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids) {
-
-}
-
 void TdChannel::updateChatList(int64_t id, std::string title) {
   chat_title_[id] = title;
 }
@@ -301,4 +255,20 @@ void TdChannel::removeDownloadHandler(int32_t id) {
 
 std::function<void(FilePtr)>& TdChannel::getDownloadHandler(int32_t id) {
   return download_handlers_[id];
+}
+
+int64_t TdChannel::getChatId(const std::string &chat) {
+  int64_t chat_id;
+
+  try {
+    chat_id = std::stoll(chat);
+  } catch (std::invalid_argument const& e) {
+    chat_id = get_chat_id(chat);
+    if (chat_id == 0)
+      throw std::logic_error(
+        "Not found chat " + chat +
+        ". Please use command 'chats' to update chat list.");
+  }
+
+  return chat_id;
 }

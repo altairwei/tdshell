@@ -7,3 +7,6 @@
 [submodule "src/3rdparty/termcolor"]
 	path = src/3rdparty/termcolor
 	url = https://github.com/ikalnytskyi/termcolor.git
+[submodule "src/3rdparty/CLI11"]
+	path = src/3rdparty/CLI11
+	url = https://github.com/CLIUtils/CLI11.git

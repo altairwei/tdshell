@@ -12,32 +12,6 @@
 #include "scopedthread.h"
 #include "common.h"
 
-// overloaded
-namespace detail {
-template <class... Fs>
-struct overload;
-
-template <class F>
-struct overload<F> : public F {
-  explicit overload(F f) : F(f) {
-  }
-};
-template <class F, class... Fs>
-struct overload<F, Fs...>
-    : public overload<F>
-    , public overload<Fs...> {
-  overload(F f, Fs... fs) : overload<F>(f), overload<Fs...>(fs...) {
-  }
-  using overload<F>::operator();
-  using overload<Fs...>::operator();
-};
-}  // namespace detail
-
-template <class... F>
-auto overloaded(F... f) {
-  return detail::overload<F...>(f...);
-}
-
 class TdChannel {
 
 public:
@@ -73,19 +47,16 @@ public:
     return std::move(prom.get_future().get());
   }
 
-  void getChats(std::promise<ChatListPtr>&, const uint32_t limit = 20);
-  void getChat(std::promise<ChatPtr>&, std::int64_t chat_id);
+  //void getChats(std::promise<ChatListPtr>&, const uint32_t limit = 20);
   std::string get_chat_title(std::int64_t chat_id) const;
   int64_t get_chat_id(const std::string & title) const;
   std::string get_user_name(std::int64_t user_id) const;
-
-  void getChatHistory(std::promise<MessageListPtr>&, td_api::int53 chat_id, const uint32_t limit = 20);
-  void downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids);
 
   void updateChatList(int64_t id, std::string title);
   void addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler);
   void removeDownloadHandler(int32_t id);
   std::function<void(FilePtr)>& getDownloadHandler(int32_t id);
+  int64_t getChatId(const std::string &chat);
 
 private:
   std::unique_ptr<td::ClientManager> client_manager_;
