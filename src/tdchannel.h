@@ -38,10 +38,10 @@ auto overloaded(F... f) {
   return detail::overload<F...>(f...);
 }
 
-class TdCore {
+class TdChannel {
 
 public:
-  TdCore();
+  TdChannel();
 
   void start();
   void stop();

@@ -1,4 +1,4 @@
-#include "tdcore.h"
+#include "tdchannel.h"
 
 #include <limits>
 #include <iostream>
@@ -7,24 +7,24 @@
 
 std::mutex output_lock;
 
-TdCore::TdCore() {
+TdChannel::TdChannel() {
   td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
   client_manager_ = std::make_unique<td::ClientManager>();
   client_id_ = client_manager_->create_client_id();
   send_query(td_api::make_object<td_api::getOption>("version"), {});
 }
 
-void TdCore::start() {
+void TdChannel::start() {
   thread_ = std::make_unique<ScopedThread>([this] {
     this->loop();
   });
 }
 
-void TdCore::stop() {
+void TdChannel::stop() {
   stop_ = true;
 }
 
-void TdCore::loop() {
+void TdChannel::loop() {
   while(true) {
     if (stop_) return;
     auto response = client_manager_->receive(5);
@@ -34,14 +34,14 @@ void TdCore::loop() {
   }
 }
 
-void TdCore::waitLogin()
+void TdChannel::waitLogin()
 {
   while(!are_authorized_)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
 }
 
-void TdCore::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler) {
+void TdChannel::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler) {
   auto query_id = next_query_id();
   if (handler) {
     handlers_.emplace(query_id, std::move(handler));
@@ -49,14 +49,14 @@ void TdCore::send_query(td_api::object_ptr<td_api::Function> f, std::function<vo
   client_manager_->send(client_id_, query_id, std::move(f));
 }
 
-std::uint64_t TdCore::next_query_id() {
+std::uint64_t TdChannel::next_query_id() {
   if (current_query_id_ == std::numeric_limits<uint64_t>::max())
     current_query_id_ = 1;
   
   return current_query_id_++;
 }
 
-void TdCore::process_response(td::ClientManager::Response response) {
+void TdChannel::process_response(td::ClientManager::Response response) {
   if (!response.object) {
     return;
   }
@@ -72,7 +72,7 @@ void TdCore::process_response(td::ClientManager::Response response) {
   }
 }
 
-void TdCore::process_update(td_api::object_ptr<td_api::Object> update) {
+void TdChannel::process_update(td_api::object_ptr<td_api::Object> update) {
   td_api::downcast_call(
       *update, overloaded(
                     [this](td_api::updateAuthorizationState &update_authorization_state) {
@@ -114,7 +114,7 @@ void TdCore::process_update(td_api::object_ptr<td_api::Object> update) {
                     [](auto &update) {}));
 }
 
-void TdCore::on_authorization_state_update() {
+void TdChannel::on_authorization_state_update() {
   authentication_query_id_++;
   td_api::downcast_call(
       *authorization_state_,
@@ -198,7 +198,7 @@ void TdCore::on_authorization_state_update() {
           }));
 }
 
-void TdCore::check_authentication_error(ObjectPtr object) {
+void TdChannel::check_authentication_error(ObjectPtr object) {
   if (object->get_id() == td_api::error::ID) {
     auto error = td::move_tl_object_as<td_api::error>(object);
     std::cout << "Error: " << to_string(error) << std::flush;
@@ -206,12 +206,12 @@ void TdCore::check_authentication_error(ObjectPtr object) {
   }
 }
 
-void TdCore::console(const std::string &msg) {
+void TdChannel::console(const std::string &msg) {
   std::lock_guard<std::mutex> guard{output_lock};
   std::cout << msg << std::endl;
 }
 
-std::string TdCore::get_user_name(std::int64_t user_id) const {
+std::string TdChannel::get_user_name(std::int64_t user_id) const {
   auto it = users_.find(user_id);
   if (it == users_.end()) {
     return "unknown user";
@@ -219,7 +219,7 @@ std::string TdCore::get_user_name(std::int64_t user_id) const {
   return it->second->first_name_ + " " + it->second->last_name_;
 }
 
-std::string TdCore::get_chat_title(std::int64_t chat_id) const {
+std::string TdChannel::get_chat_title(std::int64_t chat_id) const {
   auto it = chat_title_.find(chat_id);
   if (it == chat_title_.end()) {
     return "unknown chat";
@@ -227,7 +227,7 @@ std::string TdCore::get_chat_title(std::int64_t chat_id) const {
   return it->second;
 }
 
-int64_t TdCore::get_chat_id(const std::string & title) const
+int64_t TdChannel::get_chat_id(const std::string & title) const
 {
   auto result = std::find_if(
     chat_title_.cbegin(),
@@ -241,7 +241,7 @@ int64_t TdCore::get_chat_id(const std::string & title) const
     return 0;
 }
 
-void TdCore::getChats(std::promise<ChatListPtr> &prom, const uint32_t limit) {
+void TdChannel::getChats(std::promise<ChatListPtr> &prom, const uint32_t limit) {
   send_query(td_api::make_object<td_api::getChats>(nullptr, limit), [this, &prom](ObjectPtr object) {
     if (object->get_id() == td_api::error::ID) {
       prom.set_exception(std::make_exception_ptr(std::logic_error("getChats failed")));
@@ -252,7 +252,7 @@ void TdCore::getChats(std::promise<ChatListPtr> &prom, const uint32_t limit) {
   });
 }
 
-void TdCore::getChat(std::promise<ChatPtr>& prom, std::int64_t chat_id) {
+void TdChannel::getChat(std::promise<ChatPtr>& prom, std::int64_t chat_id) {
   send_query(td_api::make_object<td_api::getChat>(chat_id), [this, &prom](ObjectPtr object) {
     if (object->get_id() == td_api::error::ID) {
       prom.set_exception(std::make_exception_ptr(std::logic_error("getChat failed")));
@@ -263,7 +263,7 @@ void TdCore::getChat(std::promise<ChatPtr>& prom, std::int64_t chat_id) {
   });
 }
 
-void TdCore::getChatHistory(std::promise<MessageListPtr>& prom, td_api::int53 chat_id, const uint32_t limit) {
+void TdChannel::getChatHistory(std::promise<MessageListPtr>& prom, td_api::int53 chat_id, const uint32_t limit) {
   std::promise<ChatPtr> chat_prom;
   auto chat_fut = chat_prom.get_future();
   getChat(chat_prom, chat_id);
@@ -283,22 +283,22 @@ void TdCore::getChatHistory(std::promise<MessageListPtr>& prom, td_api::int53 ch
   );
 }
 
-void TdCore::downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids) {
+void TdChannel::downloadFiles(std::int64_t chat_id, std::vector<std::int64_t> message_ids) {
 
 }
 
-void TdCore::updateChatList(int64_t id, std::string title) {
+void TdChannel::updateChatList(int64_t id, std::string title) {
   chat_title_[id] = title;
 }
 
-void TdCore::addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler) {
+void TdChannel::addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler) {
   download_handlers_.emplace(id, std::move(handler));
 }
 
-void TdCore::removeDownloadHandler(int32_t id) {
+void TdChannel::removeDownloadHandler(int32_t id) {
   download_handlers_.erase(id);
 }
 
-std::function<void(FilePtr)>& TdCore::getDownloadHandler(int32_t id) {
+std::function<void(FilePtr)>& TdChannel::getDownloadHandler(int32_t id) {
   return download_handlers_[id];
 }

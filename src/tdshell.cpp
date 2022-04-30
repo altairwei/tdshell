@@ -1,4 +1,4 @@
-#include "tdshell.h"
+#include "tdchannel.h"
 
 #include <iostream>
 #include <sstream>
@@ -13,7 +13,7 @@
 #include "common.h"
 
 TdShell::TdShell() {
-  core_ = std::make_unique<TdCore>();
+  core_ = std::make_unique<TdChannel>();
 }
 
 void TdShell::open() {

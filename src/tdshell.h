@@ -4,7 +4,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "tdcore.h"
+#include "tdchannel.h"
 #include "common.h"
 
 class TdShell {
@@ -36,7 +36,7 @@ public:
   MessagePtr getMessageByLink(std::string link);
 
 private:
-  std::unique_ptr<TdCore> core_;
+  std::unique_ptr<TdChannel> core_;
 
 };
 

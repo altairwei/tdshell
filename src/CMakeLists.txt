@@ -31,7 +31,7 @@ include_directories ("3rdparty/termcolor/include")
 
 set (TDSHELL_SOURCE
     main.cpp
-    tdcore.h
+    tdchannel.h
     tdcore.cpp
     tdshell.h
     tdshell.cpp
