@@ -1,4 +1,4 @@
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
@@ -40,6 +40,7 @@ set (TDSHELL_SOURCE
 add_executable (tdshell ${TDSHELL_SOURCE} ${TL_TD_JSON_AUTO} )
 
 set_source_files_properties(${TL_TD_JSON_AUTO} PROPERTIES GENERATED TRUE)
+set_target_properties(tdshell PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_dependencies(tdshell tl_generate_json)
 target_link_libraries (tdshell tdclient ${ZLIB_LIBRARIES} -lconfig++ ${LUA_LIBRARIES} -lpthread -lcrypto -lssl )
 install (TARGETS tdshell RUNTIME DESTINATION bin)

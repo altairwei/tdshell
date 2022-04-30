@@ -4,6 +4,7 @@
 #include <sstream>
 #include <locale>
 #include <iomanip>
+#include <algorithm>
 
 #include <cli/detail/rang.h>
 #include <termcolor/termcolor.hpp>
@@ -176,6 +177,17 @@ void TdShell::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> 
           filename = content.video_->file_name_;
           can_be_downloaded = content.video_->video_->local_->can_be_downloaded_;
           is_downloading_completed = content.video_->video_->local_->is_downloading_completed_;
+        },
+        [&](td_api::messagePhoto &content) {
+          auto &ps = content.photo_->sizes_;
+          auto ret = std::max_element(ps.begin(), ps.end(), [] (auto &a, auto &b) {
+            return a->photo_->expected_size_ < b->photo_->expected_size_;
+          });
+          auto &ph = *ret;
+          file_id = ph->photo_->id_;
+          filename = content.caption_->text_;
+          can_be_downloaded = ph->photo_->local_->can_be_downloaded_;
+          is_downloading_completed = ph->photo_->local_->is_downloading_completed_;
         },
         [](auto &content) {}
       )
