@@ -37,10 +37,7 @@ set (TDSHELL_SOURCE
     commands.cpp
 )
 
-add_executable (tdshell ${TDSHELL_SOURCE} ${TL_TD_JSON_AUTO} )
-
-set_source_files_properties(${TL_TD_JSON_AUTO} PROPERTIES GENERATED TRUE)
+add_executable (tdshell ${TDSHELL_SOURCE})
 set_target_properties(tdshell PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-add_dependencies(tdshell tl_generate_json)
-target_link_libraries (tdshell tdclient ${ZLIB_LIBRARIES} -lconfig++ ${LUA_LIBRARIES} -lpthread -lcrypto -lssl )
-install (TARGETS tdshell RUNTIME DESTINATION bin)
+#target_link_libraries (tdshell tdclient ${ZLIB_LIBRARIES} -lconfig++ -lpthread -lcrypto -lssl )
+target_link_libraries (tdshell tdclient tdcore tdapi -lpthread -lcrypto -lssl)

@@ -25,10 +25,19 @@ void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
     download(out, messages_);
   } else {
     std::vector<int64_t> ids;
-    for (auto &s : messages_)
-      ids.push_back(std::stol(s));
+    for (auto &s : messages_) {
+      try {
+        ids.push_back(std::stol(s));
+      } catch (std::invalid_argument const& ex) {
+        throw std::logic_error("invalid message id: " + s);
+      } catch (std::out_of_range const& ex) {
+        throw std::logic_error("message id is out of range: " + s);
+      }
+    }
+
     if (chat_title_.empty())
       throw std::logic_error("Chat id or chat title should be provided.");
+
     download(out, chat_title_, ids);
   }
 }
@@ -245,7 +254,7 @@ CmdHistory::CmdHistory(std::shared_ptr<TdChannel> &channel)
 
 void CmdHistory::reset() {
   chat_.clear();
-  limit_ = 0;
+  limit_ = 50;
   date_.clear();
 }
 
