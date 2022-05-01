@@ -9,10 +9,11 @@
 
 class TdChannel;
 
-class Command {
+class Program {
 public:
-  Command(std::string name, std::string description, std::shared_ptr<TdChannel> &channel)
-    : channel_(channel), app_(std::make_unique<CLI::App>(description)), name_(name) {}
+  Program(std::string name, std::string description, std::shared_ptr<TdChannel> &channel)
+    : channel_(channel), app_(std::make_unique<CLI::App>(name + " - " + description))
+    , name_(name), description_(description) {}
 
   virtual void parse(std::vector<std::string> args) {
     reset();
@@ -20,16 +21,40 @@ public:
     app_->parse(args);
   }
 
-  virtual void run(std::vector<std::string> args, std::ostream& out) = 0;
+  virtual void run(std::vector<std::string> args, std::ostream& out) {
+    try {
+      parse(args);
+    } catch (const CLI::ParseError &e) {
+        if(e.get_name() == "RuntimeError")
+            throw;
+
+        if(e.get_name() == "CallForHelp") {
+            throw std::runtime_error(app_->help());
+        }
+
+        if(e.get_name() == "CallForAllHelp") {
+            throw std::runtime_error(app_->help("", CLI::AppFormatMode::All));
+        }
+
+        if(e.get_name() == "CallForVersion") {
+            throw;
+        }
+    }
+  };
+
   virtual void reset() = 0;
+
+  std::string name() { return name_; }
+  std::string description() { return description_; }
 
 protected:
   std::shared_ptr<TdChannel> channel_;
   std::unique_ptr<CLI::App> app_;
   std::string name_;
+  std::string description_;
 };
 
-class CmdDownload : public Command {
+class CmdDownload : public Program {
 public:
   CmdDownload(std::shared_ptr<TdChannel> &channel);
 
@@ -44,6 +69,56 @@ private:
   std::vector<std::string> messages_;
   bool is_link_ = false;
   std::string chat_title_;
+};
+
+class CmdChats : public Program {
+public:
+  CmdChats(std::shared_ptr<TdChannel> &channel);
+
+  void run(std::vector<std::string> args, std::ostream& out) override;
+  void reset() override;
+
+private:
+  int32_t limit_;
+};
+
+class CmdChatInfo : public Program {
+public:
+  CmdChatInfo(std::shared_ptr<TdChannel> &channel);
+
+  void run(std::vector<std::string> args, std::ostream& out) override;
+  void reset() override;
+
+private:
+  std::string chat_;
+};
+
+class CmdHistory : public Program {
+public:
+  CmdHistory(std::shared_ptr<TdChannel> &channel);
+
+  void run(std::vector<std::string> args, std::ostream& out) override;
+  void reset() override;
+
+  void history(std::ostream& out, int64_t chat_id, uint limit);
+  void history(std::ostream& out, std::string chat_title, uint limit);
+  void history(std::ostream& out, std::string chat_title, std::string date, uint limit);
+
+private:
+  std::string chat_;
+  int32_t limit_;
+  std::string date_;
+};
+
+class CmdMessageLink : public Program {
+public:
+  CmdMessageLink(std::shared_ptr<TdChannel> &channel);
+
+  void run(std::vector<std::string> args, std::ostream& out) override;
+  void reset() override;
+
+private:
+  std::string link_;
 };
 
 #endif // COMMANDS_H
