@@ -20,7 +20,7 @@ public:
     app_->parse(args);
   }
 
-  virtual void run(std::ostream& out) = 0;
+  virtual void run(std::vector<std::string> args, std::ostream& out) = 0;
   virtual void reset() = 0;
 
 protected:
@@ -33,7 +33,7 @@ class CmdDownload : public Command {
 public:
   CmdDownload(std::shared_ptr<TdChannel> &channel);
 
-  void run(std::ostream& out) override;
+  void run(std::vector<std::string> args, std::ostream& out) override;
   void reset() override;
   void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages);
   void download(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);

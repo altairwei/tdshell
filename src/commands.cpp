@@ -16,7 +16,13 @@ void CmdDownload::reset() {
   chat_title_.clear();
 }
 
-void CmdDownload::run(std::ostream& out) {
+void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
+  try {
+    parse(args);
+  } catch (const CLI::ParseError &e) {
+    app_->exit(e, out);
+  }
+
   if (is_link_) {
     download(out, messages_);
   } else {

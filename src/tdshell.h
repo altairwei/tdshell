@@ -30,6 +30,7 @@ public:
   std::map<int32_t, std::string> getFileIdFromMessages(int64_t chat_id, std::vector<int64_t> msg_ids);
 
   MessagePtr getMessageByLink(std::string link);
+  std::unique_ptr<cli::Menu> make_menu();
 
 private:
   std::shared_ptr<TdChannel> channel_;

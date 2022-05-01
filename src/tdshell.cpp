@@ -29,9 +29,54 @@ void TdShell::close() {
 }
 
 void TdShell::execute(std::string cmd, std::vector<std::string> &args, std::ostream &out) {
-  auto &command = commands_[cmd];
-  command->parse(args);
-  command->run(out);
+  commands_[cmd]->run(args, out);
+}
+
+std::unique_ptr<Menu> TdShell::make_menu() {
+  auto rootMenu = std::make_unique<Menu>("tdshell");
+  rootMenu->Insert(
+    "chats",
+    [this](std::ostream& out) { cmdChats(out); },
+    "Get chat list.");
+  rootMenu->Insert(
+    "chat_info",
+    [this](std::ostream& out, std::string chat) { cmdChatInfo(out, chat); },
+    "Get chat list.");
+  rootMenu->Insert(
+    "history",
+    [this](std::ostream& out, std::string chat_title, uint limit) {
+      cmdHistory(out, chat_title, limit);
+    },
+    "Get the history of a chat.",
+    {"chat title or id", "limit"}
+  );
+  rootMenu->Insert(
+    "history",
+    [this](std::ostream& out, std::string chat_title, std::string date, uint limit) {
+      cmdHistory(out, chat_title, date, limit);
+    },
+    "Get the history of a chat start from given date (such as 2022-04-17).",
+    {"chat title or id", "date string", "limit"}
+  );
+  rootMenu->Insert(
+    "download",
+    [this](std::ostream& out, std::vector<std::string> args) {
+      execute("download", args, out);
+    },
+    "Download files in messages.",
+    {"arguments"}
+  );
+  rootMenu->Insert(
+    "messagelink",
+    [this](std::ostream& out, std::string link) {
+      auto msg = getMessageByLink(link);
+      printMessage(out, msg);
+    },
+    "Get message from link.",
+    {"chat_id", "message_ids seperated by comma"}
+  );
+
+  return std::move(rootMenu);
 }
 
 void TdShell::cmdChats(std::ostream& out) {
