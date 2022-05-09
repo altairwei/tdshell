@@ -64,11 +64,14 @@ public:
   void download(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);
   void download(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids);
   void download(std::ostream& out, std::vector<std::string> links);
+  void parseMessagesInFile(const std::string &filename);
 
 private:
   std::vector<std::string> messages_;
   bool is_link_ = false;
   std::string chat_title_;
+  std::string output_folder_;
+  std::string list_file_;
 };
 
 class CmdChats : public Program {

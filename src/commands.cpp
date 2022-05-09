@@ -1,6 +1,12 @@
 #include "commands.h"
 
+#include <filesystem>
+#include <fstream>
+
 #include "tdchannel.h"
+#include "utils.h"
+
+namespace fs = std::filesystem;
 
 /////////////////////////////////////////////////////////////////////////////
 // CmdChats
@@ -8,22 +14,35 @@
 
 CmdDownload::CmdDownload(std::shared_ptr<TdChannel> &channel)
   : Program("download", "Download file in messages", channel) {
-  app_->add_option("messages", messages_, "message ids or message links");
+  auto msg_opt = app_->add_option("messages", messages_, "message ids or message links");
   auto link_opt = app_->add_flag("--link,-l", is_link_, "pass message links");
   app_->add_option("--chat-id,-i", chat_title_, "chat id or title")
       ->excludes(link_opt);
+  app_->add_option("--output-folder,-O", output_folder_, "Put downloaded file to given folder.");
+  app_->add_option("--list-file,-f", list_file_, "Provide messages in a file.")
+      ->excludes(msg_opt);
 }
 
 void CmdDownload::reset() {
   is_link_ = false;
   chat_title_.clear();
+  messages_.clear();
+  list_file_.clear();
+  output_folder_.clear();
 }
 
 void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
   Program::run(args, out);
+
+  if (!list_file_.empty())
+    parseMessagesInFile(list_file_);
+
   if (is_link_) {
     download(out, messages_);
   } else {
+    if (messages_.empty())
+      throw std::logic_error("messages empty");
+
     std::vector<int64_t> ids;
     for (auto &s : messages_) {
       try {
@@ -39,6 +58,21 @@ void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
       throw std::logic_error("Chat id or chat title should be provided.");
 
     download(out, chat_title_, ids);
+  }
+}
+
+void CmdDownload::parseMessagesInFile(const std::string &filename)
+{
+  fs::path file(filename);
+  if (!fs::exists(file))
+    throw std::logic_error(filename + " dosn't exist.");
+
+  std::ifstream infile(file);
+  std::string line;
+  while (std::getline(infile, line)) {
+    std::string msg = StrUtil::trim(line);
+    if (!msg.empty())
+      messages_.push_back(msg);
   }
 }
 
@@ -69,7 +103,7 @@ void CmdDownload::download(std::ostream& out, int64_t chat_id, std::vector<int64
 }
 
 void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages) {
-  std::vector<std::promise<bool>> promises;
+  std::vector<std::promise<FilePtr>> promises;
   for (size_t i = 0; i < messages.size(); i++) {
     promises.emplace_back();
   }
@@ -82,6 +116,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
     std::string filename;
     bool can_be_downloaded;
     bool is_downloading_completed;
+    FilePtr file;
 
     td_api::downcast_call(
       *(msg->content_), overloaded(
@@ -90,12 +125,14 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
           filename = content.document_->file_name_;
           can_be_downloaded = content.document_->document_->local_->can_be_downloaded_;
           is_downloading_completed = content.document_->document_->local_->is_downloading_completed_;
+          file = std::move(content.document_->document_);
         },
         [&](td_api::messageVideo &content) {
           file_id = content.video_->video_->id_;
           filename = content.video_->file_name_;
           can_be_downloaded = content.video_->video_->local_->can_be_downloaded_;
           is_downloading_completed = content.video_->video_->local_->is_downloading_completed_;
+          file = std::move(content.video_->video_);
         },
         [&](td_api::messagePhoto &content) {
           auto &ps = content.photo_->sizes_;
@@ -107,6 +144,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
           filename = content.caption_->text_;
           can_be_downloaded = ph->photo_->local_->can_be_downloaded_;
           is_downloading_completed = ph->photo_->local_->is_downloading_completed_;
+          file = std::move(ph->photo_);
         },
         [](auto &content) {}
       )
@@ -117,22 +155,26 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     if (!is_downloading_completed) {
       channel_->addDownloadHandler(file_id, [&out, &prom, filename](FilePtr file) {
-        printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
+        PrintUtil::printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
         if (file->local_->is_downloading_completed_) {
           out << std::endl;
-          out << file->local_->path_ << std::endl;
-          prom.set_value(true);
+          prom.set_value(std::move(file));
         }
       });
 
       channel_->invoke<td_api::downloadFile>(file_id, 32, 0, 0, false);
     } else {
-      prom.set_value(true);
+      prom.set_value(std::move(file));
     }
   }
 
   for (auto &prom : promises) {
-    prom.get_future().wait();
+    FilePtr file = prom.get_future().get();
+    fs::path localfile(file->local_->path_);
+    fs::path destfile(output_folder_);
+    destfile /= localfile.filename();
+    fs::rename(localfile, destfile);
+    out << destfile.string() << std::endl;
   }
 }
 
@@ -238,7 +280,7 @@ void CmdChatInfo::run(std::vector<std::string> args, std::ostream& out) {
 
   out << "- last_message: " << chat->last_message_->id_ << std::endl;
   out << "---- ";
-  printMessage(out, chat->last_message_);
+  PrintUtil::printMessage(out, chat->last_message_);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -295,7 +337,7 @@ void CmdHistory::history(std::ostream& out, std::string chat_title, std::string 
   MessageListPtr messages = prom2.get_future().get();
 
   for (auto &msg : messages->messages_) {
-    printMessage(out, msg);
+    PrintUtil::printMessage(out, msg);
   }
 }
 
@@ -306,7 +348,7 @@ void CmdHistory::history(std::ostream& out, int64_t chat_id, uint limit) {
   auto messages = channel_->invoke<td_api::getChatHistory>(
     chat_id, chat->last_message_->id_, -1, limit, false);
   for (auto &msg : messages->messages_) {
-    printMessage(out, msg);
+    PrintUtil::printMessage(out, msg);
   }
 }
 
@@ -326,5 +368,5 @@ void CmdMessageLink::reset() {
 void CmdMessageLink::run(std::vector<std::string> args, std::ostream& out) {
   Program::run(args, out);
   auto info = channel_->invoke<td_api::getMessageLinkInfo>(link_);
-  printMessage(out, info->message_);
+  PrintUtil::printMessage(out, info->message_);
 }
