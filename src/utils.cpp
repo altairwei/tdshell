@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <sstream>
+#include <cstring>
 
 namespace StrUtil {
 
@@ -41,6 +44,28 @@ std::string elidedText(const std::string& text, int width, ElideMode mode) {
     return before + ELLIPSIS + after;
   }
 
+}
+
+std::string join(std::vector<std::string> const &strings, std::string delim)
+{
+    std::stringstream ss;
+    std::copy(strings.begin(), strings.end(),
+        std::ostream_iterator<std::string>(ss, delim.c_str()));
+    return ss.str();
+}
+
+std::vector<std::string> split(const std::string &str, const std::string &sep)
+{
+  char* cstr = const_cast<char*>(str.c_str());
+  char* current;
+  std::vector<std::string> arr;
+  current = strtok(cstr, sep.c_str());
+  while(current != NULL) {
+    arr.push_back(current);
+    current = strtok(NULL,sep.c_str());
+  }
+
+  return arr;
 }
 
 } // StrUtil

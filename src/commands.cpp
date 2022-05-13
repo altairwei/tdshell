@@ -18,8 +18,11 @@ CmdDownload::CmdDownload(std::shared_ptr<TdChannel> &channel)
   auto link_opt = app_->add_flag("--link,-l", is_link_, "pass message links");
   app_->add_option("--chat-id,-i", chat_title_, "chat id or title")
       ->excludes(link_opt);
-  app_->add_option("--output-folder,-O", output_folder_, "Put downloaded file to given folder.");
-  app_->add_option("--list-file,-f", list_file_, "Provide messages in a file.")
+  app_->add_option("--output-folder,-O", output_folder_,
+                   "Put downloaded file to given folder.");
+  app_->add_option("--input-file,-f", input_file_,
+                   "The file should consist of a series of "
+                   "message ids/links, one per line")
       ->excludes(msg_opt);
 }
 
@@ -27,15 +30,15 @@ void CmdDownload::reset() {
   is_link_ = false;
   chat_title_.clear();
   messages_.clear();
-  list_file_.clear();
-  output_folder_.clear();
+  input_file_.clear();
+  output_folder_ = fs::current_path().string();
 }
 
 void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
   Program::run(args, out);
 
-  if (!list_file_.empty())
-    parseMessagesInFile(list_file_);
+  if (!input_file_.empty())
+    parseMessagesInFile(input_file_);
 
   if (is_link_) {
     download(out, messages_);
@@ -76,10 +79,28 @@ void CmdDownload::parseMessagesInFile(const std::string &filename)
   }
 }
 
+static bool isDownloadableMsg(const MessagePtr &msg) {
+  switch (msg->content_->get_id())
+  {
+  case td_api::messageDocument::ID:
+    return true;
+  case td_api::messageVideo::ID:
+    return true;
+  case td_api::messagePhoto::ID:
+    return true;
+  default:
+    return false;
+  }
+}
+
 void CmdDownload::download(std::ostream& out, std::vector<std::string> links) {
   std::vector<MessagePtr> messages;
   for (auto &link : links) {
     auto info = channel_->invoke<td_api::getMessageLinkInfo>(link);
+    if (!isDownloadableMsg(info->message_)) {
+      out << "unsupported message: " << link << std::endl;
+      continue;
+    }
     messages.emplace_back(std::move(info->message_));
   }
 
@@ -94,9 +115,12 @@ void CmdDownload::download(std::ostream& out, std::string chat, std::vector<int6
 void CmdDownload::download(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids) {
   std::vector<MessagePtr> MsgObjs;
   for (auto msg_id : message_ids) {
-    MsgObjs.emplace_back(std::move(
-      channel_->invoke<td_api::getMessage>(chat_id, msg_id)
-    ));
+    MessagePtr msg = channel_->invoke<td_api::getMessage>(chat_id, msg_id);
+    if (!isDownloadableMsg(msg)) {
+      out << "unsupported message: " << msg_id << std::endl;
+      continue;
+    }
+    MsgObjs.emplace_back(std::move(msg));
   }
 
   downloadFileInMessages(out, std::move(MsgObjs));
@@ -146,7 +170,9 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
           is_downloading_completed = ph->photo_->local_->is_downloading_completed_;
           file = std::move(ph->photo_);
         },
-        [](auto &content) {}
+        [](auto &content) {
+          throw std::logic_error("unsupported message.");
+        }
       )
     );
 

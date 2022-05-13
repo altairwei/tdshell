@@ -6,24 +6,36 @@
 #include <cli/loopscheduler.h>
 
 #include "common.h"
+#include "utils.h"
 
 using namespace cli;
 
-std::vector<std::string> str_split(std::string str, std::string sep){
-  char* cstr = const_cast<char*>(str.c_str());
-  char* current;
-  std::vector<std::string> arr;
-  current = strtok(cstr, sep.c_str());
-  while(current != NULL) {
-    arr.push_back(current);
-    current = strtok(NULL,sep.c_str());
-  }
+class MySession : public CliSession
+{
+public:
+    MySession(Cli& _cli, Scheduler& scheduler, std::ostream& _out, std::size_t historySize = 100) :
+        CliSession(_cli, _out, historySize),
+        kb(scheduler),
+        ih(*this, kb)
+    {
 
-  return arr;
-}
+    }
 
-int main() {
+private:
+    cli::detail::Keyboard kb;
+    cli::detail::InputHandler ih;
+};
+
+int main(int argc, char* argv[]) {
+
+  CLI::App app{"Telegram shell based on TDLib"};
+  app.prefix_command();
+
   try {
+
+    CLI11_PARSE(app, argc, argv);
+    std::vector<std::string> arguments = app.remaining();
+
     TdShell shell;
     shell.open();
 
@@ -31,7 +43,7 @@ int main() {
     SetColor();
 
     LoopScheduler scheduler;
-    CliLocalTerminalSession localSession(cli, scheduler, std::cout, 200);
+    MySession localSession(cli, scheduler, std::cout, 200);
     localSession.ExitAction(
       [&scheduler, &shell](auto& out)
       {
@@ -41,7 +53,14 @@ int main() {
       }
     );
 
-    scheduler.Run();
+    if (arguments.empty()) {
+      localSession.Prompt();
+      scheduler.Run();
+    } else {
+      localSession.Feed(StrUtil::join(arguments, " "));
+      scheduler.PollOne();
+      localSession.Exit();
+    }
 
     return 0;
 

@@ -27,6 +27,7 @@ public:
 private:
   std::shared_ptr<TdChannel> channel_;
   std::map<std::string, std::unique_ptr<Program>> commands_;
+  std::unique_ptr<CLI::App> app_;
 };
 
 #endif // TDSHELL_H

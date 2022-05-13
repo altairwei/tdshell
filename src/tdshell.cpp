@@ -16,6 +16,7 @@ using namespace cli;
 
 TdShell::TdShell() {
   channel_ = std::make_shared<TdChannel>();
+
   commands_["download"] = std::make_unique<CmdDownload>(channel_);
   commands_["chats"] = std::make_unique<CmdChats>(channel_);
   commands_["chatinfo"] = std::make_unique<CmdChatInfo>(channel_);

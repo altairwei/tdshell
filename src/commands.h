@@ -71,7 +71,7 @@ private:
   bool is_link_ = false;
   std::string chat_title_;
   std::string output_folder_;
-  std::string list_file_;
+  std::string input_file_;
 };
 
 class CmdChats : public Program {
