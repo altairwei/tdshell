@@ -211,11 +211,24 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 CmdChats::CmdChats(std::shared_ptr<TdChannel> &channel)
   : Program("chats", "Get chat dialog list", channel) {
   app_->add_option("--limit,-l", limit_, "The maximum number of chats to be returned");
+  app_->add_flag("--archive,-R", archive_list_, "Show archived chats.");
+  app_->add_option("--filter-id,-F", chat_filter_id_, "Show chats in a folder by filter identifier.");
 }
 
 void CmdChats::run(std::vector<std::string> args, std::ostream& out) {
   Program::run(args, out);
-  auto chats = channel_->invoke<td_api::getChats>(nullptr, limit_);
+
+  ChatListPtr chats;
+  if (chat_filter_id_ != 0) {
+    chats = channel_->invoke<td_api::getChats>(
+      td_api::make_object<td_api::chatListFilter>(chat_filter_id_), limit_);
+  } else if (archive_list_) {
+    chats = channel_->invoke<td_api::getChats>(
+      td_api::make_object<td_api::chatListArchive>(), limit_);
+  } else {
+    chats = channel_->invoke<td_api::getChats>(nullptr, limit_);
+  }
+
   for (auto chat_id : chats->chat_ids_) {
     auto chat = channel_->invoke<td_api::getChat>(chat_id);
 
@@ -253,6 +266,8 @@ void CmdChats::run(std::vector<std::string> args, std::ostream& out) {
 
 void CmdChats::reset() {
   limit_ = std::numeric_limits<int32_t>::max();
+  archive_list_ = false;
+  chat_filter_id_ = 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////

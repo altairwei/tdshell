@@ -24,8 +24,8 @@ public:
   void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler);
 
   template<typename FUN, typename RET, typename ... Args>
-  void make_query(std::promise<td::tl_object_ptr<RET>> &prom, Args... args) {
-    send_query(td_api::make_object<FUN>(args...),
+  void make_query(std::promise<td::tl_object_ptr<RET>> &prom, Args&&... args) {
+    send_query(td_api::make_object<FUN>(std::forward<Args>(args)...),
       [this, &prom](ObjectPtr object)
       {
         if (object->get_id() == td_api::error::ID) {
@@ -41,9 +41,9 @@ public:
   }
 
   template<typename FUN, typename ... Args>
-  typename FUN::ReturnType invoke(Args... args) {
+  typename FUN::ReturnType invoke(Args&&... args) {
     std::promise<typename FUN::ReturnType> prom;
-    make_query<FUN>(prom, args...);
+    make_query<FUN>(prom, std::forward<Args>(args)...);
     return std::move(prom.get_future().get());
   }
 

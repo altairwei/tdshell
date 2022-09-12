@@ -83,6 +83,8 @@ public:
 
 private:
   int32_t limit_;
+  bool archive_list_;
+  int32_t chat_filter_id_;
 };
 
 class CmdChatInfo : public Program {
