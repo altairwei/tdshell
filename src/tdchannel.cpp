@@ -171,20 +171,19 @@ void TdChannel::on_authorization_state_update() {
                         create_authentication_query_handler());
           },
           [this](td_api::authorizationStateWaitEncryptionKey &) {
-            std::lock_guard<std::mutex> guard{output_lock};
-            std::cout << "Enter encryption key or DESTROY: " << std::flush;
-            std::string key;
-            std::getline(std::cin, key);
-            if (key == "DESTROY") {
+            // TDLib needs an encryption key to decrypt the local database.
+            if (encryption_key_ == "DESTROY") {
               send_query(td_api::make_object<td_api::destroy>(), create_authentication_query_handler());
             } else {
-              send_query(td_api::make_object<td_api::checkDatabaseEncryptionKey>(std::move(key)),
+              send_query(td_api::make_object<td_api::checkDatabaseEncryptionKey>(encryption_key_),
                           create_authentication_query_handler());
             }
           },
           [this](td_api::authorizationStateWaitTdlibParameters &) {
             auto parameters = td_api::make_object<td_api::tdlibParameters>();
-            parameters->database_directory_ = "tdlib";
+            // database_directory — The path to the directory on the local diskwhere 
+            // the TDLib database is to be stored; must point to a writable directory.
+            parameters->database_directory_ = database_directory_.empty() ? "tdlib" : database_directory_;
             parameters->use_message_database_ = true;
             parameters->use_secret_chats_ = true;
             parameters->api_id_ = 94575;

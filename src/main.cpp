@@ -29,14 +29,24 @@ private:
 int main(int argc, char* argv[]) {
 
   CLI::App app{"Telegram shell based on TDLib"};
+  std::string encrypt_key;
+  std::string database_path("tdlib");
+  app.add_option("-K,--encryption-key", encrypt_key, "Input a database encryption key. "
+    "Enter ‘DESTROY’ to destroy the key.")->default_str("");
+  app.add_option("-d,--database", database_path, "The path to the directory on the local disk "
+    "where the TDLib database is to be stored; must point to a writable directory.");
   app.prefix_command();
 
   try {
 
     CLI11_PARSE(app, argc, argv);
     std::vector<std::string> arguments = app.remaining();
+  
+    bool interactive = arguments.empty();
 
     TdShell shell;
+    shell.channel()->set_encryption_key(encrypt_key);
+    shell.channel()->set_database_directory(database_path);
     shell.open();
 
     Cli cli(shell.make_menu());
@@ -45,15 +55,16 @@ int main(int argc, char* argv[]) {
     LoopScheduler scheduler;
     MySession localSession(cli, scheduler, std::cout, 200);
     localSession.ExitAction(
-      [&scheduler, &shell](auto& out)
+      [&scheduler, &shell, &interactive](auto& out)
       {
-        out << "Closing Shell..." << std::endl;
+        if (interactive)
+          out << "Closing Shell..." << std::endl;
         shell.close();
         scheduler.Stop();
       }
     );
 
-    if (arguments.empty()) {
+    if (interactive) {
       localSession.Prompt();
       scheduler.Run();
     } else {

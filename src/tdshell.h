@@ -24,6 +24,8 @@ public:
   MessagePtr getMessageByLink(std::string link);
   std::unique_ptr<cli::Menu> make_menu();
 
+  TdChannel *channel() { return channel_.get(); }
+
 private:
   std::shared_ptr<TdChannel> channel_;
   std::map<std::string, std::unique_ptr<Program>> commands_;

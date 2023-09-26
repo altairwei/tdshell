@@ -51,6 +51,8 @@ public:
   std::string get_chat_title(std::int64_t chat_id) const;
   int64_t get_chat_id(const std::string & title) const;
   std::string get_user_name(std::int64_t user_id) const;
+  void set_encryption_key(const std::string &key) { encryption_key_ = key; }
+  void set_database_directory(const std::string &folder) { database_directory_ = folder; }
 
   void updateChatList(int64_t id, std::string title);
   void addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler);
@@ -66,6 +68,8 @@ private:
   std::map<std::int32_t, std::function<void(FilePtr)>> download_handlers_;
 
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
+  std::string encryption_key_;
+  std::string database_directory_;
   std::uint64_t authentication_query_id_{0};
   std::map<std::int64_t, std::string> chat_title_;
   std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;

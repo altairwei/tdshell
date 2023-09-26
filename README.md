@@ -1,6 +1,26 @@
 # TDShell
 
-A Telegram command line interface around TDLib.
+An interactive Telegram command line interface around [TDLib](https://github.com/tdlib/td).
+
+## Usage
+
+### Running mode
+
+There are two ways to run TDShell:
+
+* interactive mode: 
+* one-shot command mode: run a commands like the sub-command of `tdshell`
+
+A Telegram database will be produced in current working directory, but this can be changed using `-D path/to/folder` option. You can encrypt this database using a password, by specify `-K`, a prompt will be shown for entering the encryption key.
+
+### Download media
+
+This is the primary goal of my developing of TDShell
+
+### View chats
+
+* `chats`: a command to list all chats in your account.
+* `history`: view the history of a chat.
 
 ## How to develop
 
@@ -24,3 +44,12 @@ Take VSCode for example:
 }
 ```
 
+### Linux
+
+Make sure `zlib`, `OpenSSL` and `gperf` have been installed:
+
+```shell
+sudo apt-get install zlib1g-dev libssl-dev gperf
+```
+
+Then use CMake to build this project.
