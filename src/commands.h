@@ -105,9 +105,9 @@ public:
   void run(std::vector<std::string> args, std::ostream& out) override;
   void reset() override;
 
-  void history(std::ostream& out, int64_t chat_id, uint limit);
-  void history(std::ostream& out, std::string chat_title, uint limit);
-  void history(std::ostream& out, std::string chat_title, std::string date, uint limit);
+  void history(std::ostream& out, int64_t chat_id, int32_t limit);
+  void history(std::ostream& out, std::string chat_title, int32_t limit);
+  void history(std::ostream& out, std::string chat_title, std::string date, int32_t limit);
 
 private:
   std::string chat_;

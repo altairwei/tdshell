@@ -39,6 +39,9 @@ set (TDSHELL_SOURCE
     utils.cpp
 )
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR})
+
 add_executable (tdshell ${TDSHELL_SOURCE})
 set_target_properties(tdshell PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 #target_link_libraries (tdshell tdclient ${ZLIB_LIBRARIES} -lconfig++ -lpthread -lcrypto -lssl )

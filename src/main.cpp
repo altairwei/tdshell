@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     localSession.ExitAction(
       [&scheduler, &shell](auto& out)
       {
-        out << "Closing Shell...\n";
+        out << "Closing Shell..." << std::endl;
         shell.close();
         scheduler.Stop();
       }

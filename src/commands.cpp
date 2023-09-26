@@ -351,13 +351,13 @@ void CmdHistory::run(std::vector<std::string> args, std::ostream& out) {
   }
 }
 
-void CmdHistory::history(std::ostream& out, std::string chat_title, uint limit)
+void CmdHistory::history(std::ostream& out, std::string chat_title, int32_t limit)
 {
   int64_t chat_id = channel_->getChatId(chat_title);
   history(out, chat_id, limit);
 }
 
-void CmdHistory::history(std::ostream& out, std::string chat_title, std::string date, uint limit)
+void CmdHistory::history(std::ostream& out, std::string chat_title, std::string date, int32_t limit)
 {
   int64_t chat_id = channel_->getChatId(chat_title);
   std::tm t = {};
@@ -382,7 +382,7 @@ void CmdHistory::history(std::ostream& out, std::string chat_title, std::string 
   }
 }
 
-void CmdHistory::history(std::ostream& out, int64_t chat_id, uint limit) {
+void CmdHistory::history(std::ostream& out, int64_t chat_id, int32_t limit) {
   std::promise<MessageListPtr> prom;
   auto fut = prom.get_future();
   auto chat = channel_->invoke<td_api::getChat>(chat_id);

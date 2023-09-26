@@ -20,7 +20,7 @@ typedef td_api::object_ptr<td_api::Object> ObjectPtr;
 typedef td_api::object_ptr<td_api::filePart> FilePartPtr;
 
 // overloaded
-namespace detail {
+namespace FunOverload {
 template <class... Fs>
 struct overload;
 
@@ -38,11 +38,11 @@ struct overload<F, Fs...>
   using overload<F>::operator();
   using overload<Fs...>::operator();
 };
-}  // namespace detail
+}  // namespace FunOverload
 
 template <class... F>
 auto overloaded(F... f) {
-  return detail::overload<F...>(f...);
+  return FunOverload::overload<F...>(f...);
 }
 
 #endif // COMMMON_H
