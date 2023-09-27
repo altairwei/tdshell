@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
 
   CLI::App app{"Telegram shell based on TDLib"};
 
-  bool require_key;
+  bool require_key = false;
   app.add_flag("-K,--encryption-key", require_key, "Require a database encryption key. "
     "Enter 'DESTROY' to destroy the local database.");
 
