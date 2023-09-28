@@ -5,6 +5,8 @@
 #include <mutex>
 #include <algorithm>
 
+#include "utils.h"
+
 std::mutex output_lock;
 
 TdChannel::TdChannel() {
@@ -36,9 +38,10 @@ void TdChannel::loop() {
 
 void TdChannel::waitLogin()
 {
-  while(!are_authorized_)
+  // FIXME: throw error when login failed
+  while(!are_authorized_) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
+  }
 }
 
 void TdChannel::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler) {
@@ -121,7 +124,6 @@ void TdChannel::on_authorization_state_update() {
       overloaded(
           [this](td_api::authorizationStateReady &) {
             are_authorized_ = true;
-            console("Got authorization");
           },
           [this](td_api::authorizationStateLoggingOut &) {
             are_authorized_ = false;
@@ -153,8 +155,7 @@ void TdChannel::on_authorization_state_update() {
           },
           [this](td_api::authorizationStateWaitPassword &) {
             std::lock_guard<std::mutex> guard{output_lock};
-            std::cout << "Enter authentication password: " << std::flush;
-            std::string password;
+            std::string password = ConsoleUtil::getPassword("Enter authentication password: ");
             std::getline(std::cin, password);
             send_query(td_api::make_object<td_api::checkAuthenticationPassword>(password),
                         create_authentication_query_handler());
@@ -170,14 +171,18 @@ void TdChannel::on_authorization_state_update() {
             send_query(td_api::make_object<td_api::setAuthenticationPhoneNumber>(phone_number, nullptr),
                         create_authentication_query_handler());
           },
-          [this](td_api::authorizationStateWaitEncryptionKey &) {
+          [this](td_api::authorizationStateWaitEncryptionKey & state) {
             // TDLib needs an encryption key to decrypt the local database.
-            if (encryption_key_ == "DESTROY") {
-              send_query(td_api::make_object<td_api::destroy>(), create_authentication_query_handler());
-            } else {
-              send_query(td_api::make_object<td_api::checkDatabaseEncryptionKey>(encryption_key_),
-                          create_authentication_query_handler());
-            }
+            if (++key_retry_ > 3)
+              throw std::logic_error("Maximum retries.");
+
+            std::string encrypt_key;
+            if (!empty_encryption_key_)
+              encrypt_key = ConsoleUtil::getPassword("Enter encryption key: ");
+            send_query(td_api::make_object<td_api::checkDatabaseEncryptionKey>(encrypt_key),
+                        create_authentication_query_handler());
+            // Prevent endless errors
+            empty_encryption_key_ = false;
           },
           [this](td_api::authorizationStateWaitTdlibParameters &) {
             auto parameters = td_api::make_object<td_api::tdlibParameters>();

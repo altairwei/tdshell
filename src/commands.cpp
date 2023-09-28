@@ -181,7 +181,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     if (!is_downloading_completed) {
       channel_->addDownloadHandler(file_id, [&out, &prom, filename](FilePtr file) {
-        PrintUtil::printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
+        ConsoleUtil::printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
         if (file->local_->is_downloading_completed_) {
           out << std::endl;
           prom.set_value(std::move(file));
@@ -198,6 +198,13 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
     FilePtr file = prom.get_future().get();
     fs::path localfile(file->local_->path_);
     fs::path destfile(output_folder_);
+
+    if (!std::filesystem::exists(destfile)) {
+        if (!std::filesystem::create_directory(destfile)) {
+          throw std::runtime_error("Failed to create directory " + output_folder_);
+        }
+    }
+
     destfile /= localfile.filename();
     fs::rename(localfile, destfile);
     out << destfile.string() << std::endl;
@@ -321,7 +328,7 @@ void CmdChatInfo::run(std::vector<std::string> args, std::ostream& out) {
 
   out << "- last_message: " << chat->last_message_->id_ << std::endl;
   out << "---- ";
-  PrintUtil::printMessage(out, chat->last_message_);
+  ConsoleUtil::printMessage(out, chat->last_message_);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -378,7 +385,7 @@ void CmdHistory::history(std::ostream& out, std::string chat_title, std::string 
   MessageListPtr messages = prom2.get_future().get();
 
   for (auto &msg : messages->messages_) {
-    PrintUtil::printMessage(out, msg);
+    ConsoleUtil::printMessage(out, msg);
   }
 }
 
@@ -389,7 +396,7 @@ void CmdHistory::history(std::ostream& out, int64_t chat_id, int32_t limit) {
   auto messages = channel_->invoke<td_api::getChatHistory>(
     chat_id, chat->last_message_->id_, -1, limit, false);
   for (auto &msg : messages->messages_) {
-    PrintUtil::printMessage(out, msg);
+    ConsoleUtil::printMessage(out, msg);
   }
 }
 
@@ -409,5 +416,5 @@ void CmdMessageLink::reset() {
 void CmdMessageLink::run(std::vector<std::string> args, std::ostream& out) {
   Program::run(args, out);
   auto info = channel_->invoke<td_api::getMessageLinkInfo>(link_);
-  PrintUtil::printMessage(out, info->message_);
+  ConsoleUtil::printMessage(out, info->message_);
 }

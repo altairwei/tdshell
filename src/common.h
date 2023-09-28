@@ -45,4 +45,12 @@ auto overloaded(F... f) {
   return FunOverload::overload<F...>(f...);
 }
 
+
+class InterruptSignalException : public std::exception {
+public:
+    const char* what() const noexcept override {
+        return "Interrupt signal (SIGINT) detected";
+    }
+};
+
 #endif // COMMMON_H

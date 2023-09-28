@@ -19,12 +19,13 @@ std::vector<std::string> split(const std::string &str, const std::string &sep);
 
 } // namespace StrUtil
 
-namespace PrintUtil
+namespace ConsoleUtil
 {
 
 void printMessage(std::ostream& out, MessagePtr &msg);
 void printProgress(std::ostream& out, std::string filename, int32_t total, int32_t downloaded);
+std::string getPassword(const std::string& prompt);
 
-} // PrintUtil
+} // ConsoleUtil
 
 #endif // SRC_UTILS_H

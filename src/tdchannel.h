@@ -29,8 +29,10 @@ public:
       [this, &prom](ObjectPtr object)
       {
         if (object->get_id() == td_api::error::ID) {
+          // FIXME: refere to check_authentication_error(), show more message.
+          auto error = td::move_tl_object_as<td_api::error>(object);
           prom.set_exception(std::make_exception_ptr(
-            std::logic_error("send_query failed: " + std::to_string(FUN::ID))
+            std::logic_error("Error: " + td_api::to_string(error))
           ));
           return;
         }
@@ -51,7 +53,7 @@ public:
   std::string get_chat_title(std::int64_t chat_id) const;
   int64_t get_chat_id(const std::string & title) const;
   std::string get_user_name(std::int64_t user_id) const;
-  void set_encryption_key(const std::string &key) { encryption_key_ = key; }
+  void use_empty_encryption_key(bool use) { empty_encryption_key_ = use; }
   void set_database_directory(const std::string &folder) { database_directory_ = folder; }
 
   void updateChatList(int64_t id, std::string title);
@@ -68,7 +70,8 @@ private:
   std::map<std::int32_t, std::function<void(FilePtr)>> download_handlers_;
 
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
-  std::string encryption_key_;
+  bool empty_encryption_key_{false};
+  std::uint8_t key_retry_{0};
   std::string database_directory_;
   std::uint64_t authentication_query_id_{0};
   std::map<std::int64_t, std::string> chat_title_;
@@ -97,8 +100,6 @@ private:
       }
     };
   }
-
-  void print_progress(td_api::updateFile &update_file);
 };
 
 #endif // TDCORE_H

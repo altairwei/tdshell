@@ -30,9 +30,12 @@ int main(int argc, char* argv[]) {
 
   CLI::App app{"Telegram shell based on TDLib"};
 
-  bool require_key = false;
-  app.add_flag("-K,--encryption-key", require_key, "Require a database encryption key. "
-    "Enter 'DESTROY' to destroy the local database.");
+  bool empty_key = false;
+  bool new_key = false;
+  bool destroy = false;
+  app.add_flag("-N,--empty-key", empty_key, "Use empty string as the encryption key for the local database.");
+  app.add_flag("--new-encryption-key", new_key, "Set a new encryption key.");
+  app.add_flag("--destroy", destroy, "Destroy the local database.");
 
   std::string database_path("tdlib");
   app.add_option("-d,--database", database_path, "The path to the directory on the local disk "
@@ -45,19 +48,18 @@ int main(int argc, char* argv[]) {
 
     CLI11_PARSE(app, argc, argv);
 
-    std::string encrypt_key;
-    if (require_key) {
-      std::cout << "Enter encryption key or DESTROY: " << std::flush;
-      std::getline(std::cin, encrypt_key);
-    }
-
     std::vector<std::string> arguments = app.remaining();
     bool interactive = arguments.empty();
 
     TdShell shell;
-    shell.channel()->set_encryption_key(encrypt_key);
+    shell.channel()->use_empty_encryption_key(empty_key);
     shell.channel()->set_database_directory(database_path);
     shell.open();
+
+    if (new_key) {
+      std::string new_password = ConsoleUtil::getPassword("Enter a new encryption key: ");
+      shell.channel()->invoke<td_api::setDatabaseEncryptionKey>(new_password);
+    }
 
     Cli cli(shell.make_menu());
     SetColor();

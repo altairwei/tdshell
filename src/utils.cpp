@@ -5,6 +5,16 @@
 #include <iterator>
 #include <sstream>
 #include <cstring>
+#include <iostream>
+#include <string>
+#include <csignal>
+
+#ifdef _WIN32
+    #include <conio.h>
+#else
+    #include <termios.h>
+    #include <unistd.h>
+#endif
 
 namespace StrUtil {
 
@@ -70,7 +80,7 @@ std::vector<std::string> split(const std::string &str, const std::string &sep)
 
 } // StrUtil
 
-namespace PrintUtil
+namespace ConsoleUtil
 {
 
 void printMessage(std::ostream& out, MessagePtr &msg) {
@@ -130,6 +140,42 @@ void printProgress(std::ostream& out, std::string filename, int32_t total, int32
   out << "] " << int(progress * 100.0) << " %\r";
 
   out.flush();
+}
+
+std::string getPassword(const std::string& prompt = "Enter password: ") {
+    std::string password;
+
+#ifdef _WIN32
+    std::cout << prompt;
+    char ch = 0;
+    while ((ch = _getch()) != '\r') {
+        if(ch == '\0' || ch == 0xE0) { // Ignore function keys
+            _getch();
+            continue;
+        }
+        if(ch == '\b' && password.length() != 0) {
+            std::cout << "\b \b";  // Erase the last character in the console as well.
+            password.pop_back();
+        }
+        else if (ch != '\b') {
+            std::cout << '*';
+            password.push_back(ch);
+        }
+    }
+    std::cout << std::endl;
+#else
+    std::cout << prompt;
+    termios oldt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    termios newt = oldt;
+    newt.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    getline(std::cin, password);
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    std::cout << std::endl;
+#endif
+
+    return password;
 }
 
 } // PrintUtil
