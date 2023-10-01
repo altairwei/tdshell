@@ -19,7 +19,10 @@ public:
 
   void start();
   void stop();
-  void waitLogin();
+  void waitForLogin();
+
+  void useEmptyEncryptionKey(bool use) { empty_encryption_key_ = use; }
+  void setDatabaseDirectory(const std::string &folder) { database_directory_ = folder; }
 
   void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(ObjectPtr)> handler);
 
@@ -53,8 +56,6 @@ public:
   std::string get_chat_title(std::int64_t chat_id) const;
   int64_t get_chat_id(const std::string & title) const;
   std::string get_user_name(std::int64_t user_id) const;
-  void use_empty_encryption_key(bool use) { empty_encryption_key_ = use; }
-  void set_database_directory(const std::string &folder) { database_directory_ = folder; }
 
   void updateChatList(int64_t id, std::string title);
   void addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler);
@@ -84,7 +85,7 @@ private:
   bool stop_{false};
 
 private:
-  void loop();
+  void receiveResponses();
   void console(const std::string &msg);
 
   std::uint64_t next_query_id();

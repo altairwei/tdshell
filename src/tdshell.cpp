@@ -24,9 +24,13 @@ TdShell::TdShell() {
   commands_["messagelink"] = std::make_unique<CmdMessageLink>(channel_);
 }
 
+TdShell::~TdShell() {
+  close();
+}
+
 void TdShell::open() {
+  channel_->waitForLogin();
   channel_->start();
-  channel_->waitLogin();
 }
 
 void TdShell::close() {

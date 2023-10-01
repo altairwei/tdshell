@@ -32,10 +32,8 @@ int main(int argc, char* argv[]) {
 
   bool empty_key = false;
   bool new_key = false;
-  bool destroy = false;
   app.add_flag("-N,--empty-key", empty_key, "Use empty string as the encryption key for the local database.");
   app.add_flag("--new-encryption-key", new_key, "Set a new encryption key.");
-  app.add_flag("--destroy", destroy, "Destroy the local database.");
 
   std::string database_path("tdlib");
   app.add_option("-d,--database", database_path, "The path to the directory on the local disk "
@@ -52,8 +50,8 @@ int main(int argc, char* argv[]) {
     bool interactive = arguments.empty();
 
     TdShell shell;
-    shell.channel()->use_empty_encryption_key(empty_key);
-    shell.channel()->set_database_directory(database_path);
+    shell.channel()->useEmptyEncryptionKey(empty_key);
+    shell.channel()->setDatabaseDirectory(database_path);
     shell.open();
 
     if (new_key) {

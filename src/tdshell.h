@@ -13,6 +13,7 @@ class TdShell {
 
 public:
   TdShell();
+  ~TdShell();
 
   void open();
   void close();

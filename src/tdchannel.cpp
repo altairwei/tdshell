@@ -18,7 +18,7 @@ TdChannel::TdChannel() {
 
 void TdChannel::start() {
   thread_ = std::make_unique<ScopedThread>([this] {
-    this->loop();
+    this->receiveResponses();
   });
 }
 
@@ -26,7 +26,7 @@ void TdChannel::stop() {
   stop_ = true;
 }
 
-void TdChannel::loop() {
+void TdChannel::receiveResponses() {
   while(true) {
     if (stop_) return;
     auto response = client_manager_->receive(5);
@@ -36,11 +36,12 @@ void TdChannel::loop() {
   }
 }
 
-void TdChannel::waitLogin()
-{
-  // FIXME: throw error when login failed
+void TdChannel::waitForLogin() {
   while(!are_authorized_) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto response = client_manager_->receive(5);
+    if (response.object) {
+      process_response(std::move(response));
+    }
   }
 }
 
