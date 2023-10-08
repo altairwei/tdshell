@@ -16,6 +16,8 @@
     #include <unistd.h>
 #endif
 
+#include <td/utils/utf8.h>
+
 namespace StrUtil {
 
 const std::string WHITESPACE = " \n\r\t\f\v";
@@ -38,19 +40,20 @@ std::string trim(const std::string &s)
 }
 
 const std::string ELLIPSIS("...");
-std::string elidedText(const std::string& text, int width, ElideMode mode) {
-  if (text.length() <= width)
+std::string elidedText(const std::string& text, std::uint8_t width, ElideMode mode) {
+  size_t textLen = td::utf8_length(text);
+
+  if (textLen <= width)
       return text;
 
-  auto textLen = text.length();
   if (mode == ElideMode::Left) {
-    return ELLIPSIS + text.substr(textLen - width, width);
+    return ELLIPSIS + td::utf8_substr(text, textLen - width, width);
   } else if (mode == ElideMode::Right) {
-    return text.substr(0, width - ELLIPSIS.length()) + ELLIPSIS;
+    return td::utf8_substr(text, 0, width - ELLIPSIS.length()) + ELLIPSIS;
   } else {
     float partlen = (width - ELLIPSIS.length()) / 2.0;
-    auto before = text.substr(0, std::ceil(partlen));
-    auto after = text.substr(textLen - std::floor(partlen), std::floor(partlen));
+    auto before = td::utf8_substr(text, 0, std::ceil(partlen));
+    auto after = td::utf8_substr(text, textLen - std::floor(partlen), std::floor(partlen));
     return before + ELLIPSIS + after;
   }
 
@@ -83,42 +86,49 @@ std::vector<std::string> split(const std::string &str, const std::string &sep)
 namespace ConsoleUtil
 {
 
-void printMessage(std::ostream& out, MessagePtr &msg) {
+void printMessage(std::ostream& out, MessagePtr &msg, bool elided, std::uint8_t elideWidth) {
   out << "[msg_id: " << msg->id_ << "] ";
   td_api::downcast_call(
       *(msg->content_), overloaded(
-        [&out](td_api::messageText &content) {
+        [&](td_api::messageText &content) {
           out << "[type: Text] [text: "
-              << content.text_->text_ << "]" << std::endl;
-        },
-        [&out](td_api::messageVideo &content) {
-          out << "[type: Video] [caption: "
-              << content.caption_->text_ << "] "
-              << "[video: " << content.video_->file_name_ << "]"
+              << (elided ? StrUtil::elidedText(content.text_->text_, elideWidth, StrUtil::Right)
+                                : content.text_->text_) << "]"
               << std::endl;
         },
-        [&out](td_api::messageDocument &content) {
+        [&](td_api::messageVideo &content) {
+          out << "[type: Video] [caption: "
+              << (elided ? StrUtil::elidedText(content.caption_->text_, elideWidth, StrUtil::Right)
+                                : content.caption_->text_) << "] "
+              << "[video: "
+              << (elided ? StrUtil::elidedText(content.video_->file_name_, 20, StrUtil::Middle)
+                                : content.video_->file_name_) << "]"
+              << std::endl;
+        },
+        [&](td_api::messageDocument &content) {
           out << "[type: Document] [text: "
-              << content.document_->file_name_ << "]" << std::endl;
+              << (elided ? StrUtil::elidedText(content.document_->file_name_, 20, StrUtil::Middle)
+                                : content.document_->file_name_) << "]" << std::endl;
         },
-        [&out](td_api::messagePhoto &content) {
+        [&](td_api::messagePhoto &content) {
           out << "[type: Photo] [caption: "
-              << content.caption_->text_ << "]" << std::endl;
+              << (elided ? StrUtil::elidedText(content.caption_->text_, elideWidth, StrUtil::Right)
+                                : content.caption_->text_) << "]" << std::endl;
         },
-        [&out](td_api::messagePinMessage &content) {
+        [&](td_api::messagePinMessage &content) {
           out << "[type: Pin] [ pinned message: "
               << content.message_id_ << "]" << std::endl;
         },
-        [&out, &msg](td_api::messageChatJoinByLink &content) {
+        [&](td_api::messageChatJoinByLink &content) {
           out << "[type: Join] [ A new member joined the chat via an invite link. ]"
               << std::endl;
         },
-        [&out, &msg](td_api::messageChatJoinByRequest &content) {
+        [&](td_api::messageChatJoinByRequest &content) {
           out << "[type: Join] [ A new member was accepted to the chat by an administrator. ]"
               << std::endl;
         },
-        [&out](auto &content) {
-          out << "[text: Unsupported" << "]" << std::endl;
+        [&](auto &content) {
+          out << "[text: Unsupported]" << std::endl;
         }
       )
   );
