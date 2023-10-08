@@ -1,32 +1,17 @@
 #include "tdshell.h"
 
 #include <stdexcept>
-#include <cli/cli.h>
-#include <cli/clilocalsession.h>
-#include <cli/loopscheduler.h>
+#include <nowide/iostream.hpp>
+#include <nowide/args.hpp>
 
 #include "common.h"
 #include "utils.h"
+#include "session.h"
 
 using namespace cli;
 
-class MySession : public CliSession
-{
-public:
-    MySession(Cli& _cli, Scheduler& scheduler, std::ostream& _out, std::size_t historySize = 100) :
-      CliSession(_cli, _out, historySize),
-      kb(scheduler),
-      ih(*this, kb)
-    {
-
-    }
-
-private:
-  cli::detail::Keyboard kb;
-  cli::detail::InputHandler ih;
-};
-
 int main(int argc, char* argv[]) {
+  nowide::args _(argc,argv); // Fix arguments - make them UTF-8
 
   CLI::App app{"Telegram shell based on TDLib"};
 
@@ -62,25 +47,23 @@ int main(int argc, char* argv[]) {
     Cli cli(shell.make_menu());
     SetColor();
 
-    LoopScheduler scheduler;
-    MySession localSession(cli, scheduler, std::cout, 200);
+    TDShellSession localSession(cli, nowide::cout, nowide::cin, 200);
     localSession.ExitAction(
-      [&scheduler, &shell, &interactive](auto& out)
+      [&localSession, &shell, &interactive](auto& out)
       {
         if (interactive)
           out << "Closing Shell..." << std::endl;
         shell.close();
-        scheduler.Stop();
+        localSession.Stop();
       }
     );
 
     if (interactive) {
-      localSession.Prompt();
-      scheduler.Run();
+      localSession.Start();
     } else {
       localSession.Feed(StrUtil::join(arguments, " "));
-      scheduler.PollOne();
       localSession.Exit();
+      localSession.Stop();
     }
 
     return 0;

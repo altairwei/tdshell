@@ -16,16 +16,19 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
 endif()
 
 add_subdirectory("3rdparty/td/")
-include_directories ("3rdparty/td/")
-include_directories ("3rdparty/td/tdactor/")
-include_directories ("3rdparty/td/tdutils/")
-include_directories ("3rdparty/td/tdtl/")
-include_directories ("3rdparty/td/td/generate/")
+include_directories("3rdparty/td/")
+include_directories("3rdparty/td/tdactor/")
+include_directories("3rdparty/td/tdutils/")
+include_directories("3rdparty/td/tdtl/")
+include_directories("3rdparty/td/td/generate/")
 include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>/3rdparty/td/tdutils)
 
-include_directories ("3rdparty/cli/include")
-include_directories ("3rdparty/termcolor/include")
-include_directories ("3rdparty/CLI11/include")
+include_directories("3rdparty/cli/include")
+include_directories("3rdparty/termcolor/include")
+include_directories("3rdparty/CLI11/include")
+
+add_subdirectory("3rdparty/nowide/")
+include_directories("3rdparty/nowide/include")
 
 set (TDSHELL_SOURCE
     main.cpp
@@ -37,6 +40,8 @@ set (TDSHELL_SOURCE
     commands.cpp
     utils.h
     utils.cpp
+    session.h
+    session.cpp
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
@@ -45,6 +50,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
 add_executable (tdshell ${TDSHELL_SOURCE})
 set_target_properties(tdshell PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 #target_link_libraries (tdshell tdclient ${ZLIB_LIBRARIES} -lconfig++ -lpthread -lcrypto -lssl )
-target_link_libraries (tdshell tdclient tdcore tdapi -lpthread -lcrypto -lssl -lstdc++fs)
+target_link_libraries (tdshell tdclient tdcore tdapi nowide -lpthread -lcrypto -lssl -lstdc++fs)
 
 install(TARGETS tdshell RUNTIME DESTINATION bin)

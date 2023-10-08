@@ -1,4 +1,4 @@
-#include "tdchannel.h"
+﻿#include "tdchannel.h"
 
 #include <limits>
 #include <iostream>
