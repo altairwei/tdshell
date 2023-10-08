@@ -246,23 +246,23 @@ void CmdChats::run(std::vector<std::string> args, std::ostream& out) {
       *(chat->type_), overloaded(
         [&out](td_api::chatTypeSupergroup &type) {
           if (type.is_channel_) {
-            out << "📢 ";
+            out << u8"📢 ";
           } else {
-            out << "👥 ";
+            out << u8"👥 ";
           }
 
           //out << "[super_id: " << type.supergroup_id_ << "] ";
         },
         [&out](td_api::chatTypePrivate &type) {
-          out << "👤 ";
+          out << u8"👤 ";
           //out << "[user_id: " << type.user_id_ << "] ";
         },
         [&out](td_api::chatTypeSecret &type) {
-          out << "👤 ";
+          out << u8"👤 ";
           //out << "[secret_id: " << type.secret_chat_id_ << "] ";
         },
         [&out](td_api::chatTypeBasicGroup &type) {
-          out << "🙌 ";
+          out << u8"🙌 ";
           //out << "[basic_id: " << type.basic_group_id_ << "] ";
         }
       )
@@ -303,23 +303,23 @@ void CmdChatInfo::run(std::vector<std::string> args, std::ostream& out) {
     *(chat->type_), overloaded(
       [&out](td_api::chatTypeSupergroup &type) {
         if (type.is_channel_) {
-          out << "📢 ";
+          out << u8"📢 ";
         } else {
-          out << "👥 ";
+          out << u8"👥 ";
         }
 
         out << "[super_id: " << type.supergroup_id_ << "] ";
       },
       [&out](td_api::chatTypePrivate &type) {
-        out << "👤 ";
+        out << u8"👤 ";
         out << "[user_id: " << type.user_id_ << "] ";
       },
       [&out](td_api::chatTypeSecret &type) {
-        out << "👤 ";
+        out << u8"👤 ";
         out << "[secret_id: " << type.secret_chat_id_ << "] ";
       },
       [&out](td_api::chatTypeBasicGroup &type) {
-        out << "🙌 ";
+        out << u8"🙌 ";
         out << "[basic_id: " << type.basic_group_id_ << "] ";
       }
     )
