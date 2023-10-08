@@ -1,7 +1,10 @@
-#include "commands.h"
+﻿#include "commands.h"
 
 #include <filesystem>
 #include <fstream>
+#include <nowide/cstdio.hpp>
+#include <nowide/fstream.hpp>
+#include <nowide/quoted.hpp>
 
 #include "tdchannel.h"
 #include "utils.h"
@@ -31,7 +34,7 @@ void CmdDownload::reset() {
   chat_title_.clear();
   messages_.clear();
   input_file_.clear();
-  output_folder_ = fs::current_path().string();
+  output_folder_ = fs::current_path().u8string();
 }
 
 void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
@@ -196,8 +199,8 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
   for (auto &prom : promises) {
     FilePtr file = prom.get_future().get();
-    fs::path localfile(file->local_->path_);
-    fs::path destfile(output_folder_);
+    fs::path localfile = fs::u8path(file->local_->path_);
+    fs::path destfile = fs::u8path(output_folder_);
 
     if (!std::filesystem::exists(destfile)) {
         if (!std::filesystem::create_directory(destfile)) {
@@ -207,7 +210,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     destfile /= localfile.filename();
     fs::rename(localfile, destfile);
-    out << destfile.string() << std::endl;
+    out << nowide::quoted(destfile) << std::endl;
   }
 }
 
@@ -406,15 +409,44 @@ void CmdHistory::history(std::ostream& out, int64_t chat_id, int32_t limit) {
 
 CmdMessageLink::CmdMessageLink(std::shared_ptr<TdChannel> &channel)
   : Program("messagelink", "Get message from link", channel) {
-  app_->add_option("link", link_, "Message or post link.");
+  auto link_opt = app_->add_option("link", link_, "Message or post link.");
+  app_->add_option("--input-file,-f", input_file_,
+                   "The file should consist of a series of "
+                   "message ids/links, one per line")
+      ->excludes(link_opt);
 }
 
 void CmdMessageLink::reset() {
   link_.clear();
+  input_file_.clear();
 }
 
 void CmdMessageLink::run(std::vector<std::string> args, std::ostream& out) {
   Program::run(args, out);
-  auto info = channel_->invoke<td_api::getMessageLinkInfo>(link_);
-  ConsoleUtil::printMessage(out, info->message_);
+
+  if (!link_.empty()) {
+    auto info = channel_->invoke<td_api::getMessageLinkInfo>(link_);
+    ConsoleUtil::printMessage(out, info->message_);
+  }
+
+  if (!input_file_.empty()) {
+    nowide::ifstream f(input_file_);
+    if(!f) throw std::logic_error("Can't open " + input_file_);
+
+    std::vector<std::string> links;
+    std::string line;
+    while (std::getline(f, line)) {
+      std::string msg = StrUtil::trim(line);
+      if (!msg.empty())
+        links.push_back(msg);
+    }
+
+    f.close();
+
+    for (auto &li : links) {
+      auto info = channel_->invoke<td_api::getMessageLinkInfo>(li);
+      ConsoleUtil::printMessage(out, info->message_);
+    }
+  }
+
 }

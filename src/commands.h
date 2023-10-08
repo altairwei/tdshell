@@ -124,6 +124,7 @@ public:
 
 private:
   std::string link_;
+  std::string input_file_;
 };
 
 #endif // COMMANDS_H
