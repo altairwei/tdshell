@@ -15,15 +15,16 @@ public:
     : channel_(channel), app_(std::make_unique<CLI::App>(name + " - " + description))
     , name_(name), description_(description) {}
 
-  virtual void parse(std::vector<std::string> args) {
+  void parse(std::vector<std::string> args) {
     reset();
     std::reverse(args.begin(), args.end());
     app_->parse(args);
   }
 
-  virtual void run(std::vector<std::string> args, std::ostream& out) {
+  void execute(std::vector<std::string> args, std::ostream& out) {
     try {
       parse(args);
+      run(out);
     } catch (const CLI::ParseError &e) {
         if(e.get_name() == "RuntimeError")
             throw;
@@ -43,6 +44,7 @@ public:
   };
 
   virtual void reset() = 0;
+  virtual void run(std::ostream& out) = 0;
 
   std::string name() { return name_; }
   std::string description() { return description_; }
@@ -58,7 +60,7 @@ class CmdDownload : public Program {
 public:
   CmdDownload(std::shared_ptr<TdChannel> &channel);
 
-  void run(std::vector<std::string> args, std::ostream& out) override;
+  void run(std::ostream& out) override;
   void reset() override;
   void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages);
   void download(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);
@@ -78,7 +80,7 @@ class CmdChats : public Program {
 public:
   CmdChats(std::shared_ptr<TdChannel> &channel);
 
-  void run(std::vector<std::string> args, std::ostream& out) override;
+  void run(std::ostream& out) override;
   void reset() override;
 
 private:
@@ -91,7 +93,7 @@ class CmdChatInfo : public Program {
 public:
   CmdChatInfo(std::shared_ptr<TdChannel> &channel);
 
-  void run(std::vector<std::string> args, std::ostream& out) override;
+  void run(std::ostream& out) override;
   void reset() override;
 
 private:
@@ -102,7 +104,7 @@ class CmdHistory : public Program {
 public:
   CmdHistory(std::shared_ptr<TdChannel> &channel);
 
-  void run(std::vector<std::string> args, std::ostream& out) override;
+  void run(std::ostream& out) override;
   void reset() override;
 
   void history(std::ostream& out, int64_t chat_id, int32_t limit);
@@ -119,7 +121,7 @@ class CmdMessageLink : public Program {
 public:
   CmdMessageLink(std::shared_ptr<TdChannel> &channel);
 
-  void run(std::vector<std::string> args, std::ostream& out) override;
+  void run(std::ostream& out) override;
   void reset() override;
 
 private:

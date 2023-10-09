@@ -38,7 +38,7 @@ void TdShell::close() {
 }
 
 void TdShell::execute(std::string cmd, std::vector<std::string> &args, std::ostream &out) {
-  commands_[cmd]->run(args, out);
+  commands_[cmd]->execute(args, out);
 }
 
 std::unique_ptr<Menu> TdShell::make_menu() {

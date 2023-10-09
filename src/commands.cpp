@@ -22,7 +22,7 @@ CmdDownload::CmdDownload(std::shared_ptr<TdChannel> &channel)
   app_->add_option("--chat-id,-i", chat_title_, "chat id or title")
       ->excludes(link_opt);
   app_->add_option("--output-folder,-O", output_folder_,
-                   "Put downloaded file to given folder.");
+                   "Put downloaded files to a given folder.");
   app_->add_option("--input-file,-f", input_file_,
                    "The file should consist of a series of "
                    "message ids/links, one per line")
@@ -37,9 +37,7 @@ void CmdDownload::reset() {
   output_folder_ = fs::current_path().u8string();
 }
 
-void CmdDownload::run(std::vector<std::string> args, std::ostream& out) {
-  Program::run(args, out);
-
+void CmdDownload::run(std::ostream& out) {
   if (!input_file_.empty())
     parseMessagesInFile(input_file_);
 
@@ -210,7 +208,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     destfile /= localfile.filename();
     fs::rename(localfile, destfile);
-    out << nowide::quoted(destfile) << std::endl;
+    out << destfile.u8string() << std::endl;
   }
 }
 
@@ -225,9 +223,7 @@ CmdChats::CmdChats(std::shared_ptr<TdChannel> &channel)
   app_->add_option("--filter-id,-F", chat_filter_id_, "Show chats in a folder by filter identifier.");
 }
 
-void CmdChats::run(std::vector<std::string> args, std::ostream& out) {
-  Program::run(args, out);
-
+void CmdChats::run(std::ostream& out) {
   ChatListPtr chats;
   if (chat_filter_id_ != 0) {
     chats = channel_->invoke<td_api::getChats>(
@@ -293,9 +289,7 @@ void CmdChatInfo::reset() {
   chat_.clear();
 }
 
-void CmdChatInfo::run(std::vector<std::string> args, std::ostream& out) {
-  Program::run(args, out);
-
+void CmdChatInfo::run(std::ostream& out) {
   int64_t chat_id = channel_->getChatId(chat_);
   ChatPtr chat = channel_->invoke<td_api::getChat>(chat_id);
 
@@ -351,9 +345,7 @@ void CmdHistory::reset() {
   date_.clear();
 }
 
-void CmdHistory::run(std::vector<std::string> args, std::ostream& out) {
-  Program::run(args, out);
-
+void CmdHistory::run(std::ostream& out) {
   if (!date_.empty()) {
     history(out, chat_, date_, limit_);
   } else {
@@ -372,6 +364,7 @@ void CmdHistory::history(std::ostream& out, std::string chat_title, std::string 
   int64_t chat_id = channel_->getChatId(chat_title);
   std::tm t = {};
   std::istringstream ss(date);
+  // FIXME: make use of Time.h of tdutils
   ss >> std::get_time(&t, "%Y-%m-%dT%H:%M:%S");
   if (ss.fail()) {
       throw std::logic_error("Parse date failed");
@@ -421,9 +414,7 @@ void CmdMessageLink::reset() {
   input_file_.clear();
 }
 
-void CmdMessageLink::run(std::vector<std::string> args, std::ostream& out) {
-  Program::run(args, out);
-
+void CmdMessageLink::run(std::ostream& out) {
   if (!link_.empty()) {
     auto info = channel_->invoke<td_api::getMessageLinkInfo>(link_);
     ConsoleUtil::printMessage(out, info->message_);
