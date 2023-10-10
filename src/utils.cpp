@@ -40,7 +40,14 @@ std::string trim(const std::string &s)
 }
 
 const std::string ELLIPSIS("...");
-std::string elidedText(const std::string& text, std::uint8_t width, ElideMode mode) {
+std::string elidedText(const std::string& input, std::uint8_t width, ElideMode mode, bool rmLinebreak) {
+  std::string text = input;
+
+  if (rmLinebreak) {
+    std::replace(text.begin(), text.end(), '\n', ' ');
+    std::replace(text.begin(), text.end(), '\r', ' ');
+  }
+
   size_t textLen = td::utf8_length(text);
 
   if (textLen <= width)
@@ -56,7 +63,6 @@ std::string elidedText(const std::string& text, std::uint8_t width, ElideMode mo
     auto after = td::utf8_substr(text, textLen - std::floor(partlen), std::floor(partlen));
     return before + ELLIPSIS + after;
   }
-
 }
 
 std::string join(std::vector<std::string> const &strings, std::string delim)

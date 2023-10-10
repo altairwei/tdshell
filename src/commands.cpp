@@ -17,38 +17,54 @@ namespace fs = std::filesystem;
 
 CmdDownload::CmdDownload(std::shared_ptr<TdChannel> &channel)
   : Program("download", "Download file in messages", channel) {
-  auto msg_opt = app_->add_option("messages", messages_, "message ids or message links");
-  auto link_opt = app_->add_flag("--link,-l", is_link_, "pass message links");
-  app_->add_option("--chat-id,-i", chat_title_, "chat id or title")
-      ->excludes(link_opt);
+  auto opt_links = app_->add_option("--links,-l", links_, "Use message links to download");
+  auto opt_ids = app_->add_option("--ids,-i", msg_ids_, "Use message IDs to download, require chat title");
+
+  auto opt_input_file = app_->add_option("--input-file,-f", input_file_,
+                   "The file should consist of a series of "
+                   "message ids/links, one per line");
+
+  auto opt_range = app_->add_option("-R,--range", range_,
+                    "Find messages between <from,to> or <from to> links.")
+      ->expected(2)->delimiter(',');
+
+  auto opt_chat_title = app_->add_option("--chat-id,-t", chat_title_, "chat id or title, "
+                   "if specified the content of options `-R` and `-f` "
+                   "will be interpreted as message IDs.");
   app_->add_option("--output-folder,-O", output_folder_,
                    "Put downloaded files to a given folder.");
-  app_->add_option("--input-file,-f", input_file_,
-                   "The file should consist of a series of "
-                   "message ids/links, one per line")
-      ->excludes(msg_opt);
+
+  opt_ids->needs(opt_chat_title);
+  opt_ids->excludes(opt_links);
+
+  opt_input_file->excludes(opt_links, opt_ids);
+  opt_range->excludes(opt_input_file, opt_links, opt_ids);
+
+  opt_chat_title->excludes(opt_links);
 }
 
 void CmdDownload::reset() {
-  is_link_ = false;
   chat_title_.clear();
-  messages_.clear();
+  links_.clear();
+  msg_ids_.clear();
   input_file_.clear();
   output_folder_ = fs::current_path().u8string();
+  range_.clear();
 }
 
 void CmdDownload::run(std::ostream& out) {
-  if (!input_file_.empty())
+  if (!input_file_.empty()) {
+    // Get links or IDs from file.
     parseMessagesInFile(input_file_);
+  }
 
-  if (is_link_) {
-    download(out, messages_);
-  } else {
-    if (messages_.empty())
-      throw std::logic_error("messages empty");
+  if (!links_.empty())
+    download(out, links_);
+
+  if (!msg_ids_.empty()) {
 
     std::vector<int64_t> ids;
-    for (auto &s : messages_) {
+    for (auto &s : msg_ids_) {
       try {
         ids.push_back(std::stol(s));
       } catch (std::invalid_argument const& ex) {
@@ -63,6 +79,9 @@ void CmdDownload::run(std::ostream& out) {
 
     download(out, chat_title_, ids);
   }
+
+  if (!range_.empty())
+    downloadMessagesInRange(out);
 }
 
 void CmdDownload::parseMessagesInFile(const std::string &filename)
@@ -75,9 +94,42 @@ void CmdDownload::parseMessagesInFile(const std::string &filename)
   std::string line;
   while (std::getline(infile, line)) {
     std::string msg = StrUtil::trim(line);
-    if (!msg.empty())
-      messages_.push_back(msg);
+    if (!msg.empty()) {
+      if (chat_title_.empty())
+        links_.push_back(msg);
+      else
+        msg_ids_.push_back(msg);
+    }
   }
+}
+
+void CmdDownload::downloadMessagesInRange(std::ostream& out)
+{
+  if (range_.empty()) return;
+
+  MessagePtr from_msg = nullptr, to_msg = nullptr;
+  // Use chat_title_ to determine how to interpret range_
+  if (chat_title_.empty()) {
+    from_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.front())->message_);
+    to_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.back())->message_);
+  } else {
+    int64_t chat_id = channel_->getChatId(chat_title_);
+    from_msg = channel_->invoke<td_api::getMessage>(chat_id, std::stol(range_.front()));
+    to_msg = channel_->invoke<td_api::getMessage>(chat_id, std::stol(range_.back()));
+  }
+
+  if (from_msg->date_ < to_msg->date_)
+    std::swap(from_msg, to_msg);
+
+  auto messages = channel_->getMessageForRange(from_msg, to_msg);
+
+  std::vector<MessagePtr> allMsg;
+  allMsg.reserve(messages.size() + 2);
+  allMsg.push_back(std::move(from_msg));
+  std::move(messages.begin(), messages.end(), std::back_inserter(allMsg));
+  allMsg.push_back(std::move(to_msg));
+
+  downloadFileInMessages(out, std::move(allMsg));
 }
 
 static bool isDownloadableMsg(const MessagePtr &msg) {
@@ -403,15 +455,20 @@ void CmdHistory::history(std::ostream& out, int64_t chat_id, int32_t limit) {
 CmdMessageLink::CmdMessageLink(std::shared_ptr<TdChannel> &channel)
   : Program("messagelink", "Get message from link", channel) {
   auto link_opt = app_->add_option("link", link_, "Message or post link.");
-  app_->add_option("--input-file,-f", input_file_,
+  auto file_opt = app_->add_option("--input-file,-f", input_file_,
                    "The file should consist of a series of "
                    "message ids/links, one per line")
       ->excludes(link_opt);
+  auto range_opt = app_->add_option("-R,--range", range_,
+                    "Look up messages between <from,to> or <from to> links.")
+      ->expected(2)->delimiter(',')
+      ->excludes(file_opt)->excludes(link_opt);
 }
 
 void CmdMessageLink::reset() {
   link_.clear();
   input_file_.clear();
+  range_.clear();
 }
 
 void CmdMessageLink::run(std::ostream& out) {
@@ -440,4 +497,16 @@ void CmdMessageLink::run(std::ostream& out) {
     }
   }
 
+  if (!range_.empty()) {
+    MessagePtr from_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.front())->message_);
+    MessagePtr to_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.back())->message_);
+
+    if (from_msg->date_ < to_msg->date_)
+      std::swap(from_msg, to_msg);
+
+    ConsoleUtil::printMessage(out, from_msg);
+    auto messages = channel_->getMessageForRange(from_msg, to_msg);
+    for (auto &msg : messages) ConsoleUtil::printMessage(out, msg);
+    ConsoleUtil::printMessage(out, to_msg);
+  }
 }

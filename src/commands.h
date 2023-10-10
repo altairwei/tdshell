@@ -67,13 +67,17 @@ public:
   void download(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids);
   void download(std::ostream& out, std::vector<std::string> links);
   void parseMessagesInFile(const std::string &filename);
+  void downloadMessagesInRange(std::ostream& out);
 
 private:
-  std::vector<std::string> messages_;
-  bool is_link_ = false;
+  //std::vector<std::string> messages_;
+  std::vector<std::string> links_;
+  std::vector<std::string> msg_ids_;
+  //bool is_link_ = false;
   std::string chat_title_;
   std::string output_folder_;
   std::string input_file_;
+  std::vector<std::string> range_;
 };
 
 class CmdChats : public Program {
@@ -127,6 +131,7 @@ public:
 private:
   std::string link_;
   std::string input_file_;
+  std::vector<std::string> range_;
 };
 
 #endif // COMMANDS_H

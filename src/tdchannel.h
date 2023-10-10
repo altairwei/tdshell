@@ -62,6 +62,7 @@ public:
   void removeDownloadHandler(int32_t id);
   std::function<void(FilePtr)>& getDownloadHandler(int32_t id);
   int64_t getChatId(const std::string &chat);
+  std::vector<MessagePtr> getMessageForRange(const MessagePtr& from, const MessagePtr& to);
 
 private:
   std::unique_ptr<td::ClientManager> client_manager_;

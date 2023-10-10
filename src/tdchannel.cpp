@@ -4,13 +4,21 @@
 #include <iostream>
 #include <mutex>
 #include <algorithm>
+#include <nowide/iostream.hpp>
 
 #include "utils.h"
 
 std::mutex output_lock;
 
 TdChannel::TdChannel() {
-  td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
+  td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(0));
+  td::ClientManager::execute(td_api::make_object<td_api::setLogStream>(td_api::make_object<td_api::logStreamEmpty>()));
+  td::ClientManager::set_log_message_callback(1, [] (int verbosity_level, const char *message) {
+    if (verbosity_level == 0)
+      nowide::cerr << "Fatal ";
+    nowide::cerr << "Error: " << message << std::endl;
+  });
+
   client_manager_ = std::make_unique<td::ClientManager>();
   client_id_ = client_manager_->create_client_id();
   send_query(td_api::make_object<td_api::getOption>("version"), {});
@@ -276,4 +284,35 @@ int64_t TdChannel::getChatId(const std::string &chat) {
   }
 
   return chat_id;
+}
+
+/** Find all messages between two messages (exclusive) */
+std::vector<MessagePtr> TdChannel::getMessageForRange(const MessagePtr& from, const MessagePtr& to)
+{
+  int64_t chat_id = from->chat_id_;
+  if (chat_id != to->chat_id_)
+    throw std::runtime_error("Two messages were not from the same chat.");
+
+  if (from->id_ == to->id_)
+    return {};
+
+  if (from->date_ < to->date_)
+    throw std::runtime_error("`From` message must newer than `To` message.");
+
+  std::vector<MessagePtr> messages;
+  int64_t id_ptr = from->id_;
+  while (true) {
+    // getChatHistory will return from_message as first one.
+    auto msgs = invoke<td_api::getChatHistory>(
+      chat_id, id_ptr, -1, 2, false);
+    if (msgs->messages_.size() == 2) {
+      auto &curr = msgs->messages_.back();
+      id_ptr = curr->id_;
+      if (id_ptr == to->id_) break;
+      messages.push_back(std::move(curr));
+      msgs->messages_.pop_back();
+    }
+  }
+
+  return messages;
 }
