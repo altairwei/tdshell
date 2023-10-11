@@ -60,7 +60,7 @@ public:
   void updateChatList(int64_t id, std::string title);
   void addDownloadHandler(int32_t id, std::function<void(FilePtr)> handler);
   void removeDownloadHandler(int32_t id);
-  std::function<void(FilePtr)>& getDownloadHandler(int32_t id);
+  void invokeDownloadHandler(FilePtr file);
   int64_t getChatId(const std::string &chat);
   std::vector<MessagePtr> getMessageForRange(const MessagePtr& from, const MessagePtr& to);
 

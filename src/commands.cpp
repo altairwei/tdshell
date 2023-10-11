@@ -180,9 +180,10 @@ void CmdDownload::download(std::ostream& out, int64_t chat_id, std::vector<int64
 }
 
 void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages) {
-  std::vector<std::promise<FilePtr>> promises;
-  for (size_t i = 0; i < messages.size(); i++) {
-    promises.emplace_back();
+  std::vector<std::promise<FilePtr>> promises{messages.size()};
+  std::vector<std::future<FilePtr>> futures;
+  for (auto& promise : promises) {
+      futures.push_back(promise.get_future());
   }
 
   for (size_t i = 0; i < messages.size(); i++) {
@@ -247,8 +248,9 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
     }
   }
 
-  for (auto &prom : promises) {
-    FilePtr file = prom.get_future().get();
+  AsynUtil::waitFutures<FilePtr>(futures, [this, &out] (FilePtr file, size_t) {
+    channel_->removeDownloadHandler(file->id_);
+
     fs::path localfile = fs::u8path(file->local_->path_);
     fs::path destfile = fs::u8path(output_folder_);
 
@@ -260,8 +262,9 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     destfile /= localfile.filename();
     fs::rename(localfile, destfile);
-    out << destfile.u8string() << std::endl;
-  }
+    out << fs::absolute(destfile).u8string() << std::endl;
+  });
+
 }
 
 /////////////////////////////////////////////////////////////////////////////

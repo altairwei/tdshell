@@ -120,8 +120,7 @@ void TdChannel::process_update(td_api::object_ptr<td_api::Object> update) {
                       //          << "]" << std::endl;
                     },
                     [this](td_api::updateFile &update_file) {
-                      auto &handler = getDownloadHandler(update_file.file_->id_);
-                      handler(std::move(update_file.file_));
+                      invokeDownloadHandler(std::move(update_file.file_));
                     },
                     [](auto &update) {}));
 }
@@ -262,12 +261,18 @@ void TdChannel::addDownloadHandler(int32_t id, std::function<void(FilePtr)> hand
   download_handlers_.emplace(id, std::move(handler));
 }
 
+/** Remove donwload handler if it exists */
 void TdChannel::removeDownloadHandler(int32_t id) {
-  download_handlers_.erase(id);
+  auto it = download_handlers_.find(id);
+  if (it != download_handlers_.end())
+      download_handlers_.erase(id);
 }
 
-std::function<void(FilePtr)>& TdChannel::getDownloadHandler(int32_t id) {
-  return download_handlers_[id];
+void TdChannel::invokeDownloadHandler(FilePtr file) {
+  auto id = file->id_;
+  auto it = download_handlers_.find(id);
+  if (it != download_handlers_.end())
+    it->second(std::move(file));
 }
 
 int64_t TdChannel::getChatId(const std::string &chat) {

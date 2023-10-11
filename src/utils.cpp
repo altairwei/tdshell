@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <csignal>
+#include <iomanip>
 
 #ifdef _WIN32
     #include <conio.h>
@@ -40,7 +41,7 @@ std::string trim(const std::string &s)
 }
 
 const std::string ELLIPSIS("...");
-std::string elidedText(const std::string& input, std::uint8_t width, ElideMode mode, bool rmLinebreak) {
+std::string elidedText(const std::string& input, std::uint8_t width, StrLoc mode, bool rmLinebreak) {
   std::string text = input;
 
   if (rmLinebreak) {
@@ -53,15 +54,30 @@ std::string elidedText(const std::string& input, std::uint8_t width, ElideMode m
   if (textLen <= width)
       return text;
 
-  if (mode == ElideMode::Left) {
+  if (mode == StrLoc::Left) {
     return ELLIPSIS + td::utf8_substr(text, textLen - width, width);
-  } else if (mode == ElideMode::Right) {
+  } else if (mode == StrLoc::Right) {
     return td::utf8_substr(text, 0, width - ELLIPSIS.length()) + ELLIPSIS;
   } else {
     float partlen = (width - ELLIPSIS.length()) / 2.0;
     auto before = td::utf8_substr(text, 0, std::ceil(partlen));
     auto after = td::utf8_substr(text, textLen - std::floor(partlen), std::floor(partlen));
     return before + ELLIPSIS + after;
+  }
+}
+
+std::string paddingText(const std::string& text, std::uint8_t width, char pad_char, StrLoc location)
+{
+  size_t textLen = td::utf8_length(text);
+  if (textLen >= width) {
+      return text;
+  }
+
+  size_t pad_size = width - textLen;
+  if (location == Left) {
+      return std::string(pad_size, pad_char) + text;
+  } else {
+      return text + std::string(pad_size, pad_char);
   }
 }
 
@@ -144,16 +160,23 @@ void printMessage(std::ostream& out, MessagePtr &msg, bool elided, std::uint8_t 
 void printProgress(std::ostream& out, std::string filename, int32_t total, int32_t downloaded) {
   double progress = double(downloaded) / double(total);
 
+  // Print percentage
+  out << std::setw(3) << std::setfill(' ') << int(progress * 100.0) << " %";
+
+  // Print progress bar
   int barWidth = 50;
-  out << StrUtil::elidedText(filename, 20, StrUtil::Middle);
   out << " [";
-  int pos = barWidth * progress;
+  int pos = int(barWidth * progress);
   for (int i = 0; i < barWidth; ++i) {
       if (i < pos) out << "=";
       else if (i == pos) out << ">";
       else out << " ";
   }
-  out << "] " << int(progress * 100.0) << " %\r";
+  out << "] ";
+
+  // Print filename
+  out << StrUtil::paddingText(StrUtil::elidedText(filename, 20, StrUtil::Middle), 20, ' ', StrUtil::Right)
+      << "\r";
 
   out.flush();
 }
