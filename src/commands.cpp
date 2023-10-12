@@ -169,38 +169,67 @@ void CmdDownload::download(std::ostream& out, int64_t chat_id, std::vector<int64
   downloadFileInMessages(out, std::move(MsgObjs));
 }
 
-void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr>& messages) {
-  std::vector<std::promise<FilePtr>> promises{messages.size()};
-  std::vector<std::future<FilePtr>> futures;
-  for (auto& promise : promises) {
-      futures.push_back(promise.get_future());
-  }
+struct DownloadTask {
+  std::int32_t file_id;
+  std::string filename;
+  bool can_be_downloaded;
+  bool is_downloading_completed;
+  FilePtr file;
 
+  // Default constructor
+  DownloadTask() = delete;
+
+  // Constructor to initialize the struct with values
+  DownloadTask(std::int32_t id, const std::string& name, bool can_download,
+                bool is_download_completed, FilePtr f)
+    : file_id(id), filename(name), can_be_downloaded(can_download),
+      is_downloading_completed(is_download_completed), file(std::move(f)) {}
+
+  // Move constructor
+  DownloadTask(DownloadTask&& other) noexcept
+    : file_id(other.file_id),
+      filename(std::move(other.filename)),
+      can_be_downloaded(other.can_be_downloaded),
+      is_downloading_completed(other.is_downloading_completed),
+      file(std::move(other.file)) { }
+
+  // Move assignment operator
+  DownloadTask& operator=(DownloadTask&& other) noexcept {
+    if (this != &other) {
+      file_id = other.file_id;
+      filename = std::move(other.filename);
+      can_be_downloaded = other.can_be_downloaded;
+      is_downloading_completed = other.is_downloading_completed;
+      file = std::move(other.file);
+    }
+    return *this;
+  }
+};
+
+void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr>& messages) {
+  std::vector<DownloadTask> tasks;
   for (size_t i = 0; i < messages.size(); i++) {
     auto &msg = messages[i];
-    auto &prom = promises[i];
-
-    std::int32_t file_id;
-    std::string filename;
-    bool can_be_downloaded;
-    bool is_downloading_completed;
-    FilePtr file;
 
     td_api::downcast_call(
       *(msg->content_), overloaded(
         [&](td_api::messageDocument &content) {
-          file_id = content.document_->document_->id_;
-          filename = content.document_->file_name_;
-          can_be_downloaded = content.document_->document_->local_->can_be_downloaded_;
-          is_downloading_completed = content.document_->document_->local_->is_downloading_completed_;
-          file = std::move(content.document_->document_);
+          tasks.emplace(tasks.end(),
+            content.document_->document_->id_,
+            content.document_->file_name_,
+            content.document_->document_->local_->can_be_downloaded_,
+            content.document_->document_->local_->is_downloading_completed_,
+            std::move(content.document_->document_)
+          );
         },
         [&](td_api::messageVideo &content) {
-          file_id = content.video_->video_->id_;
-          filename = content.video_->file_name_;
-          can_be_downloaded = content.video_->video_->local_->can_be_downloaded_;
-          is_downloading_completed = content.video_->video_->local_->is_downloading_completed_;
-          file = std::move(content.video_->video_);
+          tasks.emplace(tasks.end(),
+            content.video_->video_->id_,
+            content.video_->file_name_,
+            content.video_->video_->local_->can_be_downloaded_,
+            content.video_->video_->local_->is_downloading_completed_,
+            std::move(content.video_->video_)
+          );
         },
         [&](td_api::messagePhoto &content) {
           auto &ps = content.photo_->sizes_;
@@ -208,34 +237,52 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
             return a->photo_->expected_size_ < b->photo_->expected_size_;
           });
           auto &ph = *ret;
-          file_id = ph->photo_->id_;
-          filename = content.caption_->text_;
-          can_be_downloaded = ph->photo_->local_->can_be_downloaded_;
-          is_downloading_completed = ph->photo_->local_->is_downloading_completed_;
-          file = std::move(ph->photo_);
+          tasks.emplace(tasks.end(),
+            ph->photo_->id_,
+            content.caption_->text_,
+            ph->photo_->local_->can_be_downloaded_,
+            ph->photo_->local_->is_downloading_completed_,
+            std::move(ph->photo_)
+          );
         },
-        [](auto &content) {
-          throw std::logic_error("unsupported message.");
-        }
+        [](auto &content) {/* Unsupported message. */}
       )
     );
+  }
 
-    if (!can_be_downloaded)
-      throw std::logic_error("File can't be download: " + filename);
+  size_t skipped = messages.size() - tasks.size();
+  if (tasks.size() > 1) {
+    out << "Total " << tasks.size() << " files to be downloaded";
+    if (skipped > 0)
+      out << " and " << skipped << (skipped > 1 ? " files" : " file") << " skipped";
+    out << ":" << std::endl;
+  }
 
-    if (!is_downloading_completed) {
-      channel_->addDownloadHandler(file_id, [&out, &prom, filename](FilePtr file) {
-        ConsoleUtil::printProgress(out, filename, file->expected_size_, file->local_->downloaded_size_);
+  std::vector<std::promise<FilePtr>> promises{tasks.size()};
+  std::vector<std::future<FilePtr>> futures;
+
+  for (size_t i = 0; i < tasks.size(); i++){
+    auto &task = tasks[i];
+    auto &prom = promises[i];
+
+    if (!task.can_be_downloaded)
+      throw std::logic_error("File can't be download: " + task.filename);
+
+    if (!task.is_downloading_completed) {
+      channel_->addDownloadHandler(task.file_id, [&out, &prom, &task](FilePtr file) {
+        ConsoleUtil::printProgress(out, task.filename, file->expected_size_, file->local_->downloaded_size_);
         if (file->local_->is_downloading_completed_) {
           out << std::endl;
           prom.set_value(std::move(file));
         }
       });
 
-      channel_->invoke<td_api::downloadFile>(file_id, 32, 0, 0, false);
+      channel_->invoke<td_api::downloadFile>(task.file_id, 32, 0, 0, false);
     } else {
-      prom.set_value(std::move(file));
+      prom.set_value(std::move(task.file));
     }
+
+    futures.push_back(prom.get_future());
   }
 
   AsynUtil::waitFutures<FilePtr>(futures, [this, &out] (FilePtr file, size_t) {

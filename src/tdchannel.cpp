@@ -4,6 +4,8 @@
 #include <iostream>
 #include <mutex>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 #include <nowide/iostream.hpp>
 
 #include "utils.h"
@@ -292,7 +294,7 @@ int64_t TdChannel::getChatId(const std::string &chat) {
 }
 
 /** Find all messages between two messages (inclusive) */
-std::vector<MessagePtr> TdChannel::getMessageForRange(MessagePtr from, MessagePtr to)
+std::vector<MessagePtr> TdChannel::getMessageForRange(MessagePtr from, MessagePtr to, uint8_t wait)
 {
   int64_t chat_id = from->chat_id_;
   if (chat_id != to->chat_id_)
@@ -311,15 +313,26 @@ std::vector<MessagePtr> TdChannel::getMessageForRange(MessagePtr from, MessagePt
   std::vector<MessagePtr> messages;
   messages.push_back(std::move(from));
   while (true) {
-    // getChatHistory will return from_message as first one.
+    // getChatHistory will return `from_message` as the first message.
     auto msgs = invoke<td_api::getChatHistory>(
-      chat_id, id_ptr, -1, 2, false);
-    if (msgs->messages_.size() == 2) {
-      auto &curr = msgs->messages_.back();
-      id_ptr = curr->id_;
-      messages.push_back(std::move(curr));
-      msgs->messages_.pop_back();
-      if (id_ptr == to->id_) break;
+      chat_id, id_ptr, -1, 50, false);
+    if (msgs->messages_.size() > 1) {
+      // The messages are ordered from newest to oldest,
+      // find the position of the 'to' message if it is in the current batch
+      auto it = std::find_if(msgs->messages_.begin() + 1, msgs->messages_.end(),
+                             [&to](const MessagePtr& msg) { return msg->id_ == to->id_; });
+      if (it != msgs->messages_.end()) {
+        // 'to' message found, move all messages from the batch to 'messages' vector
+        std::move(msgs->messages_.begin() + 1, it + 1, std::back_inserter(messages));
+        break;
+      } else {
+        // Update id_ptr for the next batch
+        id_ptr = msgs->messages_.back()->id_;
+        // 'to' message not found, move all messages from the batch to 'messages' vector
+        std::move(msgs->messages_.begin() + 1, msgs->messages_.end(), std::back_inserter(messages));
+      }
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(wait));
     }
   }
 
