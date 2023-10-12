@@ -66,10 +66,10 @@ void CmdDownload::run(std::ostream& out) {
     std::vector<int64_t> ids;
     for (auto &s : msg_ids_) {
       try {
-        ids.push_back(std::stol(s));
-      } catch (std::invalid_argument const& ex) {
+        ids.push_back(std::stoll(s));
+      } catch (std::invalid_argument const&) {
         throw std::logic_error("invalid message id: " + s);
-      } catch (std::out_of_range const& ex) {
+      } catch (std::out_of_range const&) {
         throw std::logic_error("message id is out of range: " + s);
       }
     }
@@ -114,22 +114,12 @@ void CmdDownload::downloadMessagesInRange(std::ostream& out)
     to_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.back())->message_);
   } else {
     int64_t chat_id = channel_->getChatId(chat_title_);
-    from_msg = channel_->invoke<td_api::getMessage>(chat_id, std::stol(range_.front()));
-    to_msg = channel_->invoke<td_api::getMessage>(chat_id, std::stol(range_.back()));
+    from_msg = channel_->invoke<td_api::getMessage>(chat_id, std::stoll(range_.front()));
+    to_msg = channel_->invoke<td_api::getMessage>(chat_id, std::stoll(range_.back()));
   }
 
-  if (from_msg->date_ < to_msg->date_)
-    std::swap(from_msg, to_msg);
-
-  auto messages = channel_->getMessageForRange(from_msg, to_msg);
-
-  std::vector<MessagePtr> allMsg;
-  allMsg.reserve(messages.size() + 2);
-  allMsg.push_back(std::move(from_msg));
-  std::move(messages.begin(), messages.end(), std::back_inserter(allMsg));
-  allMsg.push_back(std::move(to_msg));
-
-  downloadFileInMessages(out, std::move(allMsg));
+  auto messages = channel_->getMessageForRange(std::move(from_msg), std::move(to_msg));
+  downloadFileInMessages(out, std::move(messages));
 }
 
 static bool isDownloadableMsg(const MessagePtr &msg) {
@@ -179,7 +169,7 @@ void CmdDownload::download(std::ostream& out, int64_t chat_id, std::vector<int64
   downloadFileInMessages(out, std::move(MsgObjs));
 }
 
-void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages) {
+void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr>& messages) {
   std::vector<std::promise<FilePtr>> promises{messages.size()};
   std::vector<std::future<FilePtr>> futures;
   for (auto& promise : promises) {
@@ -391,18 +381,32 @@ CmdHistory::CmdHistory(std::shared_ptr<TdChannel> &channel)
   : Program("history", "Get the history of a chat", channel) {
   app_->add_option("chat", chat_, "Chat id or title.");
   app_->add_option("--date,-d", date_, "Get history no later than the specified date (ISO format).");
-  app_->add_option("--limit,-l", limit_, "	The maximum number of messages to be returned.");
+  app_->add_option("--limit,-l", limit_, "The maximum number of messages to be returned.");
+  app_->add_option("--from-message,-f", from_, "Get history older than the given message (id/link).");
 }
 
 void CmdHistory::reset() {
   chat_.clear();
   limit_ = 50;
   date_.clear();
+  from_.clear();
 }
 
 void CmdHistory::run(std::ostream& out) {
   if (!date_.empty()) {
     history(out, chat_, date_, limit_);
+  } else if (!from_.empty()) {
+    if (!chat_.empty()) {
+      try {
+        int64_t chat_id = channel_->getChatId(chat_);
+        auto msg = channel_->invoke<td_api::getMessage>(chat_id, std::stoll(from_));
+        history(out, msg, limit_);
+      } catch (std::invalid_argument const&) {
+        throw std::runtime_error("`--from-message` must be an ID not a link when chat title provided.");
+      }
+    } else {
+      history(out, channel_->invoke<td_api::getMessageLinkInfo>(from_)->message_, limit_);
+    }
   } else {
     history(out, chat_, limit_);
   }
@@ -446,6 +450,15 @@ void CmdHistory::history(std::ostream& out, int64_t chat_id, int32_t limit) {
   auto chat = channel_->invoke<td_api::getChat>(chat_id);
   auto messages = channel_->invoke<td_api::getChatHistory>(
     chat_id, chat->last_message_->id_, -1, limit, false);
+  for (auto &msg : messages->messages_) {
+    ConsoleUtil::printMessage(out, msg);
+  }
+}
+
+void CmdHistory::history(std::ostream& out, MessagePtr& msg, int32_t limit)
+{
+  auto messages = channel_->invoke<td_api::getChatHistory>(
+    msg->chat_id_, msg->id_, -1, limit, false);
   for (auto &msg : messages->messages_) {
     ConsoleUtil::printMessage(out, msg);
   }
@@ -503,13 +516,8 @@ void CmdMessageLink::run(std::ostream& out) {
   if (!range_.empty()) {
     MessagePtr from_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.front())->message_);
     MessagePtr to_msg = std::move(channel_->invoke<td_api::getMessageLinkInfo>(range_.back())->message_);
-
-    if (from_msg->date_ < to_msg->date_)
-      std::swap(from_msg, to_msg);
-
-    ConsoleUtil::printMessage(out, from_msg);
-    auto messages = channel_->getMessageForRange(from_msg, to_msg);
-    for (auto &msg : messages) ConsoleUtil::printMessage(out, msg);
-    ConsoleUtil::printMessage(out, to_msg);
+    auto messages = channel_->getMessageForRange(std::move(from_msg), std::move(to_msg));
+    for (auto &msg : messages)
+      ConsoleUtil::printMessage(out, msg);
   }
 }

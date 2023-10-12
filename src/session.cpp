@@ -1,5 +1,7 @@
 #include "session.h"
 
+#include <termcolor/termcolor.hpp>
+
 using namespace cli;
 using namespace cli::detail;
 
@@ -7,7 +9,11 @@ TDShellSession::TDShellSession(cli::Cli& _cli, std::ostream& _out, std::istream&
     CliSession(_cli, _out, historySize),
     in_(_in)
 {
-
+  _cli.StdExceptionHandler(
+    [] (std::ostream& out, const std::string &cmd, const std::exception& e) {
+      out << termcolor::colorize << termcolor::red << "Error: " << termcolor::reset << e.what() << std::endl;
+    }
+  );
 }
 
 void TDShellSession::Start()
@@ -16,15 +22,15 @@ void TDShellSession::Start()
 
     while(!exit_)
     {
-        Prompt();
-        std::string line;
-        if (!InStream().good())
-            Exit();
-        std::getline(InStream(), line);
-        if (InStream().eof())
-            Exit();
-        else
-            Feed(line);
+      Prompt();
+      std::string line;
+      if (!InStream().good())
+        Exit();
+      std::getline(InStream(), line);
+      if (InStream().eof())
+        Exit();
+      else
+        Feed(line);
     }
 }
 

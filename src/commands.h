@@ -62,7 +62,7 @@ public:
 
   void run(std::ostream& out) override;
   void reset() override;
-  void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages);
+  void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr>& messages);
   void download(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);
   void download(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids);
   void download(std::ostream& out, std::vector<std::string> links);
@@ -114,11 +114,13 @@ public:
   void history(std::ostream& out, int64_t chat_id, int32_t limit);
   void history(std::ostream& out, std::string chat_title, int32_t limit);
   void history(std::ostream& out, std::string chat_title, std::string date, int32_t limit);
+  void history(std::ostream& out, MessagePtr& msg, int32_t limit);
 
 private:
   std::string chat_;
   int32_t limit_;
   std::string date_;
+  std::string from_;
 };
 
 class CmdMessageLink : public Program {

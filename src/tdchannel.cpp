@@ -280,7 +280,7 @@ int64_t TdChannel::getChatId(const std::string &chat) {
 
   try {
     chat_id = std::stoll(chat);
-  } catch (std::invalid_argument const& e) {
+  } catch (std::invalid_argument const&) {
     chat_id = get_chat_id(chat);
     if (chat_id == 0)
       throw std::logic_error(
@@ -291,8 +291,8 @@ int64_t TdChannel::getChatId(const std::string &chat) {
   return chat_id;
 }
 
-/** Find all messages between two messages (exclusive) */
-std::vector<MessagePtr> TdChannel::getMessageForRange(const MessagePtr& from, const MessagePtr& to)
+/** Find all messages between two messages (inclusive) */
+std::vector<MessagePtr> TdChannel::getMessageForRange(MessagePtr from, MessagePtr to)
 {
   int64_t chat_id = from->chat_id_;
   if (chat_id != to->chat_id_)
@@ -302,10 +302,14 @@ std::vector<MessagePtr> TdChannel::getMessageForRange(const MessagePtr& from, co
     return {};
 
   if (from->date_ < to->date_)
-    throw std::runtime_error("`From` message must newer than `To` message.");
+    std::swap(from, to);
 
-  std::vector<MessagePtr> messages;
+  if (from->id_ < to->id_)
+    std::swap(from, to);
+
   int64_t id_ptr = from->id_;
+  std::vector<MessagePtr> messages;
+  messages.push_back(std::move(from));
   while (true) {
     // getChatHistory will return from_message as first one.
     auto msgs = invoke<td_api::getChatHistory>(
@@ -313,9 +317,9 @@ std::vector<MessagePtr> TdChannel::getMessageForRange(const MessagePtr& from, co
     if (msgs->messages_.size() == 2) {
       auto &curr = msgs->messages_.back();
       id_ptr = curr->id_;
-      if (id_ptr == to->id_) break;
       messages.push_back(std::move(curr));
       msgs->messages_.pop_back();
+      if (id_ptr == to->id_) break;
     }
   }
 
