@@ -1,40 +1,59 @@
 # TDShell
 
-An interactive Telegram command line interface around [TDLib](https://github.com/tdlib/td).
+An interactive Telegram command line interface utilizing [TDLib](https://github.com/tdlib/td).
 
 ## Usage
 
-### Running mode
+### Running Modes
 
-There are two ways to run TDShell:
+TDShell can be run in two different ways:
 
-* interactive mode: 
-* one-shot command mode: run a commands like the sub-command of `tdshell`
+* **Interactive mode**: Simply type `tdshell` with some options.
+* **One-shot command mode**: Run commands as if they are sub-commands of `tdshell`.
 
-A Telegram database will be produced in current working directory, but this can be changed using `-D path/to/folder` option. You can encrypt this database using a password, by specify `-K`, a prompt will be shown for entering the encryption key.
+A Telegram database will be generated in the current working directory. However, you can change its location using the `tdshell -d path/to/folder` option. To encrypt this database, you will be prompted to enter an encryption key. If you prefer not to set an encryption key, use `tdshell -N` to set an empty key.
 
-### Download media
+Type `help` to view available commands, and `exit` to close TDShell.
 
-This is the primary goal of my developing of TDShell
+### Downloading Media Files
 
-### View chats
+This is the primary goal of my development of TDShell:
 
-* `chats`: a command to list all chats in your account.
-* `history`: view the history of a chat.
+```shell
+# Download files in messages with given message IDs
+download --chat-id -1001472283207 --ids 6887137168 6887184146
 
-## How to develop
+# Download files in messages given post links
+download --output-folder ./videos/news/ --links https://t.me/AChannel/6560 https://t.me/BChannel/123
+
+# Download files from message XX to message YY
+download --chat-id AChannel --range XX YY
+download --chat-id AChannel --range XX,YY
+download --chat-id AChannel --range XX --range YY
+```
+
+### Viewing Chats or Messages
+
+Use `--help` to view options for the following commands:
+
+* `chats`: A command to list all chats in your account.
+* `history`: View the history of a chat.
+* `chatinfo`: Retrieve information about a chat.
+* `messagelink`: Read post links and print messages. 
+
+## How to Develop
 
 ### Windows
 
-Use `vcpkg` to install dependecies:
+Use `vcpkg` to install dependencies:
 
 ```shell
 ./vcpkg.exe install gperf:x64-windows openssl:x64-windows zlib:x64-windows
 ```
 
-Put the toolchain file `CMAKE_TOOLCHAIN_FILE=[vcpkg root]/scripts/buildsystems/vcpkg.cmake` to the CMake configuration settings of your favor IDE, please refere to [Using vcpkg with CMake](https://github.com/Microsoft/vcpkg#using-vcpkg-with-cmake).
+Place the toolchain file `CMAKE_TOOLCHAIN_FILE=[vcpkg root]/scripts/buildsystems/vcpkg.cmake` in the CMake configuration settings of your preferred IDE. Please refer to [Using vcpkg with CMake](https://github.com/Microsoft/vcpkg#using-vcpkg-with-cmake).
 
-Take VSCode for example:
+Example for VSCode:
 
 ```json
 {
@@ -46,10 +65,10 @@ Take VSCode for example:
 
 ### Linux
 
-Make sure `zlib`, `OpenSSL` and `gperf` have been installed:
+Ensure that `zlib`, `OpenSSL`, and `gperf` are installed:
 
 ```shell
 sudo apt-get install zlib1g-dev libssl-dev gperf
 ```
 
-Then use CMake to build this project.
+Then, use CMake to build the project.

@@ -62,7 +62,7 @@ public:
 
   void run(std::ostream& out) override;
   void reset() override;
-  void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr>& messages);
+  void downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages);
   void download(std::ostream& out, std::string chat, std::vector<int64_t> message_ids);
   void download(std::ostream& out, int64_t chat_id, std::vector<int64_t> message_ids);
   void download(std::ostream& out, std::vector<std::string> links);

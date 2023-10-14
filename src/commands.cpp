@@ -206,7 +206,7 @@ struct DownloadTask {
   }
 };
 
-void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr>& messages) {
+void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages) {
   std::vector<DownloadTask> tasks;
   for (size_t i = 0; i < messages.size(); i++) {
     auto &msg = messages[i];
