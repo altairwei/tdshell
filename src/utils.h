@@ -3,6 +3,8 @@
 
 #include <string>
 #include <future>
+#include <mutex>
+
 #include "common.h"
 
 namespace StrUtil
@@ -25,6 +27,8 @@ std::vector<std::string> split(const std::string &str, const std::string &sep);
 
 namespace ConsoleUtil
 {
+
+extern std::mutex output_lock;
 
 void printMessage(std::ostream& out, MessagePtr &msg, bool elided = true, std::uint8_t elideWidth = 20);
 void printProgress(std::ostream& out, std::string filename, int32_t total, int32_t downloaded);

@@ -207,6 +207,11 @@ struct DownloadTask {
 };
 
 void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessagePtr> messages) {
+  // Sort messages in descending order
+  std::sort(messages.begin(), messages.end(),
+    [](const MessagePtr& a, const MessagePtr& b) { return a->id_ > a->id_; });
+
+  // Extract media in messages
   std::vector<DownloadTask> tasks;
   for (size_t i = 0; i < messages.size(); i++) {
     auto &msg = messages[i];
@@ -250,11 +255,26 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
     );
   }
 
-  size_t skipped = messages.size() - tasks.size();
+  size_t ntasks = tasks.size();
+  size_t skipped = messages.size() - ntasks;
+
+  // Remove duplicated files
+  std::sort(
+    tasks.begin(), tasks.end(),
+    [](const DownloadTask& a, const DownloadTask& b) { return a.file_id > b.file_id; });
+  auto last = std::unique(
+    tasks.begin(), tasks.end(),
+    [](const DownloadTask& a, const DownloadTask& b) { return a.file_id == b.file_id; });
+  tasks.erase(last, tasks.end());
+
+  size_t duplicated = ntasks - tasks.size();
+
   if (tasks.size() > 1) {
     out << "Total " << tasks.size() << " files to be downloaded";
     if (skipped > 0)
-      out << " and " << skipped << (skipped > 1 ? " files" : " file") << " skipped";
+      out << ", " << skipped << (skipped > 1 ? " messages" : " message") << " skipped";
+    if (duplicated > 0)
+      out << ", " << duplicated << " duplicated" << (duplicated > 1 ? " files" : " file") << " skipped";
     out << ":" << std::endl;
   }
 
@@ -270,6 +290,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     if (!task.is_downloading_completed) {
       channel_->addDownloadHandler(task.file_id, [&out, &prom, &task](FilePtr file) {
+        std::lock_guard<std::mutex> guard{ConsoleUtil::output_lock};
         ConsoleUtil::printProgress(out, task.filename, file->expected_size_, file->local_->downloaded_size_);
         if (file->local_->is_downloading_completed_) {
           out << std::endl;
@@ -285,7 +306,7 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
     futures.push_back(prom.get_future());
   }
 
-  AsynUtil::waitFutures<FilePtr>(futures, [this, &out] (FilePtr file, size_t) {
+  AsynUtil::waitFutures<FilePtr>(futures, [this, &out] (FilePtr file, size_t i) {
     channel_->removeDownloadHandler(file->id_);
 
     fs::path localfile = fs::u8path(file->local_->path_);
@@ -299,6 +320,8 @@ void CmdDownload::downloadFileInMessages(std::ostream& out, std::vector<MessageP
 
     destfile /= localfile.filename();
     fs::rename(localfile, destfile);
+
+    std::lock_guard<std::mutex> guard{ConsoleUtil::output_lock};
     out << fs::absolute(destfile).u8string() << std::endl;
   });
 

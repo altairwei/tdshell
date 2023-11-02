@@ -108,6 +108,8 @@ std::vector<std::string> split(const std::string &str, const std::string &sep)
 namespace ConsoleUtil
 {
 
+std::mutex output_lock;
+
 void printMessage(std::ostream& out, MessagePtr &msg, bool elided, std::uint8_t elideWidth) {
   out << "[msg_id: " << msg->id_ << "] ";
   td_api::downcast_call(

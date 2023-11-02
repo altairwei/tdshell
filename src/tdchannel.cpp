@@ -2,15 +2,12 @@
 
 #include <limits>
 #include <iostream>
-#include <mutex>
 #include <algorithm>
 #include <thread>
 #include <chrono>
 #include <nowide/iostream.hpp>
 
 #include "utils.h"
-
-std::mutex output_lock;
 
 TdChannel::TdChannel() {
   td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(0));
@@ -153,7 +150,7 @@ void TdChannel::on_authorization_state_update() {
                         create_authentication_query_handler());
           },
           [this](td_api::authorizationStateWaitRegistration &) {
-            std::lock_guard<std::mutex> guard{output_lock};
+            std::lock_guard<std::mutex> guard{ConsoleUtil::output_lock};
             std::string first_name;
             std::string last_name;
             std::cout << "Enter your first name: " << std::flush;
@@ -164,7 +161,7 @@ void TdChannel::on_authorization_state_update() {
                         create_authentication_query_handler());
           },
           [this](td_api::authorizationStateWaitPassword &) {
-            std::lock_guard<std::mutex> guard{output_lock};
+            std::lock_guard<std::mutex> guard{ConsoleUtil::output_lock};
             std::string password = ConsoleUtil::getPassword("Enter authentication password: ");
             std::getline(std::cin, password);
             send_query(td_api::make_object<td_api::checkAuthenticationPassword>(password),
@@ -174,7 +171,7 @@ void TdChannel::on_authorization_state_update() {
             console("Confirm this login link on another device: " + state.link_);
           },
           [this](td_api::authorizationStateWaitPhoneNumber &) {
-            std::lock_guard<std::mutex> guard{output_lock};
+            std::lock_guard<std::mutex> guard{ConsoleUtil::output_lock};
             std::cout << "Enter phone number: " << std::flush;
             std::string phone_number;
             std::cin >> phone_number;
@@ -221,7 +218,7 @@ void TdChannel::check_authentication_error(ObjectPtr object) {
 }
 
 void TdChannel::console(const std::string &msg) {
-  std::lock_guard<std::mutex> guard{output_lock};
+  std::lock_guard<std::mutex> guard{ConsoleUtil::output_lock};
   std::cout << msg << std::endl;
 }
 
